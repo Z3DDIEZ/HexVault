@@ -1,5 +1,5 @@
-use hexvault::stack::{self, Layer, LayerContext};
 use hexvault::generate_master_key;
+use hexvault::stack::{self, Layer, LayerContext};
 
 #[test]
 fn test_layer_peeling_order() {
@@ -9,7 +9,7 @@ fn test_layer_peeling_order() {
     let master = generate_master_key().unwrap();
     let cell_id = "test-cell";
     let plaintext = b"layered secret";
-    
+
     let ctx = LayerContext {
         access_policy_id: Some("policy".into()),
         session_id: Some("session".into()),
@@ -34,26 +34,39 @@ fn test_invalid_context_rejection() {
     let master = generate_master_key().unwrap();
     let cell_id = "test-auth";
     let plaintext = b"guarded secret";
-    
+
     let correct_ctx = LayerContext {
         access_policy_id: Some("secret-policy".into()),
-        session_id: None, 
+        session_id: None,
     };
 
     // 1. Seal to Layer 1 (AccessGated).
-    let sealed = stack::seal(&master, cell_id, Layer::AccessGated, &correct_ctx, plaintext).unwrap();
+    let sealed = stack::seal(
+        &master,
+        cell_id,
+        Layer::AccessGated,
+        &correct_ctx,
+        plaintext,
+    )
+    .unwrap();
 
     // 2. Attempt to peel with WRONG policy ID.
     let mut wrong_ctx = correct_ctx.clone();
     wrong_ctx.access_policy_id = Some("public-policy".into());
 
     let result = stack::peel(&master, cell_id, Layer::AccessGated, &wrong_ctx, &sealed);
-    assert!(result.is_err(), "Peeling succeeded with wrong access policy ID!");
+    assert!(
+        result.is_err(),
+        "Peeling succeeded with wrong access policy ID!"
+    );
 
     // 3. Attempt to peel with MISSING policy ID.
     let mut missing_ctx = correct_ctx.clone();
     missing_ctx.access_policy_id = None;
 
     let result_missing = stack::peel(&master, cell_id, Layer::AccessGated, &missing_ctx, &sealed);
-    assert!(result_missing.is_err(), "Peeling succeeded with missing access policy ID!");
+    assert!(
+        result_missing.is_err(),
+        "Peeling succeeded with missing access policy ID!"
+    );
 }

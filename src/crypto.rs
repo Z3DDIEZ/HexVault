@@ -35,7 +35,8 @@ pub const KEY_LEN: usize = 32;
 fn generate_nonce() -> Result<([u8; NONCE_LEN], Nonce), HexvaultError> {
     let rng = SystemRandom::new();
     let mut buf = [0u8; NONCE_LEN];
-    rng.fill(&mut buf).map_err(|_| HexvaultError::RandomnessFailure)?;
+    rng.fill(&mut buf)
+        .map_err(|_| HexvaultError::RandomnessFailure)?;
     Ok((buf, Nonce::assume_unique_for_key(buf)))
 }
 
@@ -50,8 +51,7 @@ fn generate_nonce() -> Result<([u8; NONCE_LEN], Nonce), HexvaultError> {
 /// [ nonce (12 bytes) ][ ciphertext + GCM tag ]
 /// ```
 pub fn encrypt(key_bytes: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>, HexvaultError> {
-    let unbound = UnboundKey::new(ALGORITHM, key_bytes)
-        .map_err(|_| HexvaultError::InvalidKey)?;
+    let unbound = UnboundKey::new(ALGORITHM, key_bytes).map_err(|_| HexvaultError::InvalidKey)?;
     let key = LessSafeKey::new(unbound);
 
     let (nonce_bytes, nonce) = generate_nonce()?;
@@ -89,8 +89,7 @@ pub fn decrypt(key_bytes: &[u8; KEY_LEN], ciphertext: &[u8]) -> Result<Vec<u8>, 
         .map_err(|_| HexvaultError::DecryptionFailure)?;
     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
-    let unbound = UnboundKey::new(ALGORITHM, key_bytes)
-        .map_err(|_| HexvaultError::InvalidKey)?;
+    let unbound = UnboundKey::new(ALGORITHM, key_bytes).map_err(|_| HexvaultError::InvalidKey)?;
     let key = LessSafeKey::new(unbound);
 
     let aad = aead::Aad::empty();
@@ -110,6 +109,7 @@ pub fn decrypt(key_bytes: &[u8; KEY_LEN], ciphertext: &[u8]) -> Result<Vec<u8>, 
 pub fn generate_random_key() -> Result<[u8; KEY_LEN], HexvaultError> {
     let rng = SystemRandom::new();
     let mut key = [0u8; KEY_LEN];
-    rng.fill(&mut key).map_err(|_| HexvaultError::RandomnessFailure)?;
+    rng.fill(&mut key)
+        .map_err(|_| HexvaultError::RandomnessFailure)?;
     Ok(key)
 }

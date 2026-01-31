@@ -156,11 +156,25 @@ mod tests {
         // Wrong session ID
         let mut wrong_context = context.clone();
         wrong_context.session_id = Some("wrong-session".to_string());
-        assert!(peel(&master, cell_id, Layer::SessionBound, &wrong_context, &sealed).is_err());
+        assert!(peel(
+            &master,
+            cell_id,
+            Layer::SessionBound,
+            &wrong_context,
+            &sealed
+        )
+        .is_err());
 
         // Missing access policy
         let mut missing_context = context.clone();
         missing_context.access_policy_id = None;
-        assert!(peel(&master, cell_id, Layer::SessionBound, &missing_context, &sealed).is_err());
+        assert!(peel(
+            &master,
+            cell_id,
+            Layer::SessionBound,
+            &missing_context,
+            &sealed
+        )
+        .is_err());
     }
 }

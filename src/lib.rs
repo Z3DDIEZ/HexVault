@@ -14,13 +14,13 @@
 //! is `pub(crate)` at most.
 
 // Module declarations.
+pub mod audit;
+pub mod cell;
 pub(crate) mod crypto;
+pub mod edge;
 pub mod error;
 pub(crate) mod keys;
-pub mod cell;
 pub mod stack;
-pub mod audit;
-pub mod edge;
 
 // ---------------------------------------------------------------------------
 // Public API — Phase 2 surface
