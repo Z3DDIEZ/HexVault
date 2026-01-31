@@ -61,22 +61,23 @@ All cryptographic operations are backed by the [`ring`](https://github.com/brian
 use hexvault::{Vault, CellId, LayerContext};
 
 // Master key is caller-provided. In production, source this from a KMS.
-let master_key = hexvault::generate_master_key();
+let master_key = hexvault::generate_master_key().unwrap();
 
 // Create the vault and register cells.
 let mut vault = Vault::new(master_key);
-let cell_a = vault.create_cell(CellId::new("cell-a"))?;
-let cell_b = vault.create_cell(CellId::new("cell-b"))?;
+let mut cell_a = vault.create_cell("cell-a".to_string());
+let mut cell_b = vault.create_cell("cell-b".to_string());
 
 // Encrypt a payload into Cell A through all three stack layers.
 let context = LayerContext {
-    access_policy_id: "policy-001".into(),
-    session_id: "session-abc".into(),
+    access_policy_id: Some("policy-001".into()),
+    session_id: Some("session-abc".into()),
 };
-vault.seal(&cell_a, b"sensitive payload", &context)?;
+vault.seal(&mut cell_a, "sensitive payload", b"data", Layer::AtRest, &context).unwrap();
 
 // Traverse from Cell A to Cell B. Plaintext never leaves the edge.
-vault.traverse(&cell_a, &cell_b, &context)?;
+// Note: We use the same context for source and destination here for simplicity.
+vault.traverse(&cell_a, &mut cell_b, "sensitive payload", Layer::AtRest, &context, &context).unwrap();
 
 // Audit log is populated automatically.
 let log = vault.audit_log();
