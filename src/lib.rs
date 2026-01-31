@@ -14,15 +14,11 @@
 //! is `pub(crate)` at most.
 
 // Module declarations.
-// `crypto` and `keys` are implemented in Phase 2.
-// The remaining modules are stubs — they will be filled in during later phases.
 pub(crate) mod crypto;
 pub mod error;
 pub(crate) mod keys;
-
-// --- Phase 3 stubs (not yet implemented) ---
-// pub(crate) mod cell;
-// pub(crate) mod stack;
+pub mod cell;
+pub mod stack;
 
 // --- Phase 4 stubs (not yet implemented) ---
 // pub(crate) mod audit;

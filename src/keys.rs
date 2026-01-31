@@ -140,12 +140,14 @@ pub(crate) fn derive_key(
     // The info string encodes the cell, layer, and context — ensuring every
     // derived key is unique and scoped.
     let info_bytes = info.as_bytes();
+    let info_slices = [info_bytes];
     let okm = prk
-        .expand(&[info_bytes], KEY_LEN)
+        .expand(&info_slices, hkdf::HKDF_SHA256)
         .map_err(|_| HexvaultError::KeyDerivationFailure)?;
 
     let mut derived = [0u8; KEY_LEN];
-    okm.fill_bytes(&mut derived);
+    okm.fill(&mut derived)
+        .map_err(|_| HexvaultError::KeyDerivationFailure)?;
 
     Ok(DerivedKey { bytes: derived })
 }
