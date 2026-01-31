@@ -103,13 +103,15 @@ impl Vault {
     ) -> Result<(), error::HexvaultError> {
         edge::traverse(
             &self.master_key,
-            source,
-            dest,
-            key,
-            target_layer,
-            source_ctx,
-            dest_ctx,
             &mut self.audit_log,
+            edge::TraversalRequest {
+                source,
+                dest,
+                key,
+                target_layer,
+                source_ctx,
+                dest_ctx,
+            },
         )
     }
 
