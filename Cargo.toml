@@ -2,12 +2,23 @@
 name = "hexvault"
 version = "1.0.0"
 edition = "2021"
-description = "Cascading cell-partitioned encryption architecture"
 license = "MIT"
 repository = "https://github.com/Z3DDIEZ/HexVault"
+description = "Cascading cell-partitioned encryption architecture."
+documentation = "https://docs.rs/hexvault"
+keywords = ["security", "encryption", "architecture", "cryptography", "isolation"]
+categories = ["cryptography", "data-structures"]
+exclude = ["AG-docs/*", ".github/*"]
 
 [dependencies]
 ring = "0.17"
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "traversal_benchmark"
+harness = false
