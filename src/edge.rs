@@ -49,13 +49,8 @@ pub fn traverse(
     // We store the plaintext into the destination cell.
     // Note: We use the same key string for simplicity, but strictly speaking
     // the key in the new cell could be different. For this API, we keep it consistent.
-    req.dest.store(
-        master,
-        req.key,
-        &plaintext,
-        req.target_layer,
-        req.dest_ctx,
-    )?;
+    req.dest
+        .store(master, req.key, &plaintext, req.target_layer, req.dest_ctx)?;
 
     // Phase 3: Audit
     // Log the successful traversal.
