@@ -4,12 +4,14 @@
 //! (top-down). Each layer corresponds to a different trust boundary and
 //! requires specific context to peel.
 
+use serde::{Deserialize, Serialize};
+
 use crate::crypto;
 use crate::error::HexvaultError;
 use crate::keys::{self, MasterKey};
 
 /// The three layers of the hexvault encryption stack.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Layer {
     /// Layer 0: Base data protection (at-rest).
     AtRest = 0,

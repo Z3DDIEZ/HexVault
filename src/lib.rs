@@ -19,10 +19,8 @@ pub mod error;
 pub(crate) mod keys;
 pub mod cell;
 pub mod stack;
-
-// --- Phase 4 stubs (not yet implemented) ---
-// pub(crate) mod audit;
-// pub(crate) mod edge;
+pub mod audit;
+pub mod edge;
 
 // ---------------------------------------------------------------------------
 // Public API — Phase 2 surface
@@ -39,4 +37,84 @@ use keys::MasterKey;
 pub fn generate_master_key() -> Result<MasterKey, error::HexvaultError> {
     let bytes = crypto::generate_random_key()?;
     Ok(MasterKey::from_bytes(bytes))
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 API — Vault Wrapper
+// ---------------------------------------------------------------------------
+
+use audit::AuditLog;
+use cell::{Cell, CellId};
+use stack::{Layer, LayerContext};
+
+/// The high-level entry point for managing cells and traversals.
+///
+/// Holds the master key and the central audit log.
+pub struct Vault {
+    master_key: MasterKey,
+    audit_log: AuditLog,
+}
+
+impl Vault {
+    /// Create a new Vault with the provided master key.
+    pub fn new(master_key: MasterKey) -> Self {
+        Self {
+            master_key,
+            audit_log: AuditLog::new(),
+        }
+    }
+
+    /// Create a new isolated cell.
+    pub fn create_cell(&self, id: CellId) -> Cell {
+        Cell::new(id)
+    }
+
+    /// Seal a payload into a specific cell.
+    pub fn seal(
+        &self,
+        cell: &mut Cell,
+        key: &str,
+        plaintext: &[u8],
+        layer: Layer,
+        context: &LayerContext,
+    ) -> Result<(), error::HexvaultError> {
+        cell.store(&self.master_key, key, plaintext, layer, context)
+    }
+
+    /// Retrieve a payload from a cell.
+    pub fn open(
+        &self,
+        cell: &Cell,
+        key: &str,
+        context: &LayerContext,
+    ) -> Result<Vec<u8>, error::HexvaultError> {
+        cell.retrieve(&self.master_key, key, context)
+    }
+
+    /// Traverse data from one cell to another.
+    pub fn traverse(
+        &mut self,
+        source: &Cell,
+        dest: &mut Cell,
+        key: &str,
+        target_layer: Layer,
+        source_ctx: &LayerContext,
+        dest_ctx: &LayerContext,
+    ) -> Result<(), error::HexvaultError> {
+        edge::traverse(
+            &self.master_key,
+            source,
+            dest,
+            key,
+            target_layer,
+            source_ctx,
+            dest_ctx,
+            &mut self.audit_log,
+        )
+    }
+
+    /// Inspect the audit log.
+    pub fn audit_log(&self) -> &AuditLog {
+        &self.audit_log
+    }
 }
