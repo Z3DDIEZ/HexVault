@@ -86,10 +86,12 @@ assert_eq!(log.len(), 1);
 
 ---
 
-## Running Tests
+## Running Tests and Examples
 
 ```sh
 cargo test
+cargo run --example multi_tenant_demo
+cargo bench --bench kms_comparison_benchmark   # HexVault vs. KMS-style (simulated latency)
 ```
 
 The test suite is organised into five modules, each targeting a specific security property. See `tests/` for full coverage. The threat model and what each test module validates is documented in [SECURITY.md](SECURITY.md).
@@ -103,6 +105,8 @@ The test suite is organised into five modules, each targeting a specific securit
 | [SECURITY.md](SECURITY.md) | Threat model, what each architectural layer defends against, responsible disclosure |
 | [docs/architecture.md](docs/architecture.md) | Full design detail: cells, stacks, edges, key derivation, data flow |
 | [docs/design-decisions.md](docs/design-decisions.md) | ADR-style log of why things were built the way they were |
+| [docs/when-to-use-hexvault.md](docs/when-to-use-hexvault.md) | When to choose HexVault vs. KMS + IAM — decision guide for architects |
+| [docs/key-rotation.md](docs/key-rotation.md) | Key rotation design (dual-key period, lazy re-encryption) |
 
 ---
 
@@ -150,6 +154,8 @@ Benchmarks run on an AMD Ryzen 9 5950X (or equivalent high-end desktop):
 | 10 KB | ~13.2 µs | 739 MB/s |
 
 *Note: The non-linear throughput scaling confirms the fixed overhead of key derivation (HKDF) and audit logging dominates small payloads, while AES-GCM encryption speed dominates larger payloads.*
+
+**vs. KMS:** HexVault traversal is ~1000× faster than cloud KMS for local operations (KMS ~15–30ms per call due to network RTT). Run `cargo bench --bench kms_comparison_benchmark` for the comparative benchmark.
 
 ---
 

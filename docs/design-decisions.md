@@ -89,3 +89,13 @@ The tradeoff is that key derivation adds a small computational cost on every enc
 **Decision.** All operations in the PoC are synchronous.
 
 **Consequences.** Synchronous code is easier to reason about in the context of security-critical operations. The plaintext lifetime in the edge handler is a single, linear scope — there is no yield point where another task could observe it. Async would introduce potential for interleaving at yield points, which complicates the plaintext lifetime argument. For an in-memory PoC with no I/O, there is no performance case for async. If the library is extended to support persistent storage or network-based KMS, async would become the correct choice.
+
+---
+
+## ADR-009 — Pluggable Audit Sink for Persistence
+
+**Context.** The audit log is in-memory. For production, records need to be persisted to a file, database, S3, or similar. The library could own every backend or allow callers to provide one.
+
+**Decision.** Add an `AuditSink` trait and `add_forward_sink()` on `AuditLog`. The primary log remains in-memory for inspection; attached sinks receive a copy of every record. A built-in `FileAuditSink` writes JSON lines for common use cases.
+
+**Consequences.** Callers can persist the audit trail without modifying core logic. The primary log stays in memory so `audit_log().iter()` continues to work. Forward sinks are optional — existing code is unchanged. The tradeoff is that sink failures (e.g., disk full) do not abort the traversal; the in-memory log still records it. Callers must ensure sink reliability for their compliance requirements.

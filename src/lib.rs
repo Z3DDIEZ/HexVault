@@ -119,4 +119,10 @@ impl Vault {
     pub fn audit_log(&self) -> &AuditLog {
         &self.audit_log
     }
+
+    /// Add a sink to receive a copy of every traversal record.
+    /// Use this to persist the audit log to a file, S3, or other store.
+    pub fn add_audit_sink(&mut self, sink: Box<dyn audit::AuditSink>) {
+        self.audit_log.add_forward_sink(sink);
+    }
 }

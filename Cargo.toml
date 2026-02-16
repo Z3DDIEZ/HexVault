@@ -22,3 +22,7 @@ criterion = "0.5"
 [[bench]]
 name = "traversal_benchmark"
 harness = false
+
+[[bench]]
+name = "kms_comparison_benchmark"
+harness = false
