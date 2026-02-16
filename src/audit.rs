@@ -45,7 +45,10 @@ impl std::fmt::Debug for AuditLog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AuditLog")
             .field("records", &self.records)
-            .field("forward_sinks", &self.forward_sinks.as_ref().map(|s| s.len()))
+            .field(
+                "forward_sinks",
+                &self.forward_sinks.as_ref().map(|s| s.len()),
+            )
             .finish()
     }
 }
@@ -115,10 +118,7 @@ pub struct FileAuditSink {
 impl FileAuditSink {
     /// Open or create a file for append-only audit logging.
     pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        let file = OpenOptions::new().create(true).append(true).open(path)?;
         Ok(Self { file })
     }
 }

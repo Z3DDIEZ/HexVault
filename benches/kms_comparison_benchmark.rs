@@ -63,7 +63,7 @@ fn bench_hexvault_traversal(c: &mut Criterion) {
         b.iter(|| {
             simulate_kms_call(); // decrypt round-trip
             simulate_kms_call(); // encrypt round-trip
-            // Actual crypto would happen here; we're measuring the dominant cost (network)
+                                 // Actual crypto would happen here; we're measuring the dominant cost (network)
         });
     });
 
