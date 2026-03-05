@@ -30,7 +30,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let retrieved = vault.open(&cell, "public_profile", &at_rest_ctx)?;
-    println!("[Layer 0] Retrieved: {}", String::from_utf8_lossy(&retrieved));
+    println!(
+        "[Layer 0] Retrieved: {}",
+        String::from_utf8_lossy(&retrieved)
+    );
 
     // -----------------------------------------------------------------------
     // Layer 1 — Access-gated: Requires access_policy_id.
@@ -49,7 +52,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let retrieved = vault.open(&cell, "salary_data", &access_ctx)?;
-    println!("[Layer 1] Retrieved: {}", String::from_utf8_lossy(&retrieved));
+    println!(
+        "[Layer 1] Retrieved: {}",
+        String::from_utf8_lossy(&retrieved)
+    );
 
     // Attempt with wrong policy — must fail.
     let wrong_ctx = LayerContext {
@@ -78,7 +84,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let retrieved = vault.open(&cell, "ssn", &session_ctx)?;
-    println!("[Layer 2] Retrieved: {}", String::from_utf8_lossy(&retrieved));
+    println!(
+        "[Layer 2] Retrieved: {}",
+        String::from_utf8_lossy(&retrieved)
+    );
 
     // Attempt with expired/wrong session — must fail.
     let expired_ctx = LayerContext {
