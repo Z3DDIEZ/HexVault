@@ -1,6 +1,5 @@
 # === Rust build output ===
 /target
-Cargo.lock
 
 # === IDE & editor ===
 .idea/

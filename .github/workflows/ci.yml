@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,7 +13,7 @@ jobs:
   build:
     name: Build & Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,11 +30,30 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       - name: Clippy Lint
         run: cargo clippy -- -D warnings
 
+      - name: Build Documentation
+        run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
       - name: Run Tests
         run: cargo test --verbose
+
+      - name: Run Doc Tests
+        run: cargo test --doc
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Audit Dependencies
+        run: cargo audit

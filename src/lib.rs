@@ -34,6 +34,7 @@ use keys::MasterKey;
 /// `MasterKey` is the single secret from which all per-cell and per-layer
 /// keys are derived. In production, callers should source master keys from
 /// a dedicated KMS rather than generating them locally.
+#[must_use = "discarding a master key is likely a bug"]
 pub fn generate_master_key() -> Result<MasterKey, error::HexvaultError> {
     let bytes = crypto::generate_random_key()?;
     Ok(MasterKey::from_bytes(bytes))
@@ -124,5 +125,12 @@ impl Vault {
     /// Use this to persist the audit log to a file, S3, or other store.
     pub fn add_audit_sink(&mut self, sink: Box<dyn audit::AuditSink>) {
         self.audit_log.add_forward_sink(sink);
+    }
+
+    /// Return the number of audit records logged so far.
+    ///
+    /// Convenience method equivalent to `vault.audit_log().len()`.
+    pub fn audit_log_len(&self) -> usize {
+        self.audit_log.len()
     }
 }

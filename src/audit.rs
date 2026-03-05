@@ -3,6 +3,7 @@
 //! Records every edge traversal. The log is append-only.
 //! Supports pluggable sinks for forwarding records to files, S3, etc.
 
+use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -30,6 +31,16 @@ pub struct AuditRecord {
     pub layer: Layer,
     /// When the traversal occurred.
     pub timestamp: DateTime<Utc>,
+}
+
+impl fmt::Display for AuditRecord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} → {} @ {:?} [{}]",
+            self.source_cell_id, self.dest_cell_id, self.layer, self.timestamp
+        )
+    }
 }
 
 /// An append-only log of all traversals.
@@ -125,9 +136,70 @@ impl FileAuditSink {
 
 impl AuditSink for FileAuditSink {
     fn append(&mut self, record: AuditRecord) {
-        if let Ok(line) = serde_json::to_string(&record) {
-            let _ = writeln!(self.file, "{line}");
-            let _ = self.file.flush();
+        match serde_json::to_string(&record) {
+            Ok(line) => {
+                if let Err(e) = writeln!(self.file, "{line}") {
+                    eprintln!("hexvault: FileAuditSink write error: {e}");
+                }
+                if let Err(e) = self.file.flush() {
+                    eprintln!("hexvault: FileAuditSink flush error: {e}");
+                }
+            }
+            Err(e) => {
+                eprintln!("hexvault: FileAuditSink serialization error: {e}");
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    #[test]
+    fn test_audit_log_serde_roundtrip() {
+        let mut log = AuditLog::new();
+
+        log.append(AuditRecord {
+            source_cell_id: "cell-a".into(),
+            dest_cell_id: "cell-b".into(),
+            layer: Layer::AtRest,
+            timestamp: Utc::now(),
+        });
+        log.append(AuditRecord {
+            source_cell_id: "cell-b".into(),
+            dest_cell_id: "cell-c".into(),
+            layer: Layer::SessionBound,
+            timestamp: Utc::now(),
+        });
+
+        // Serialize
+        let json = serde_json::to_string(&log).expect("serialize");
+
+        // Deserialize
+        let restored: AuditLog = serde_json::from_str(&json).expect("deserialize");
+
+        // Records are preserved
+        assert_eq!(restored.len(), 2);
+        assert_eq!(restored.iter().next().unwrap().source_cell_id, "cell-a");
+
+        // Forward sinks are dropped (not serialised) — this is correct behaviour
+        // The restored log should not have any sinks
+    }
+
+    #[test]
+    fn test_audit_record_display() {
+        let record = AuditRecord {
+            source_cell_id: "cell-a".into(),
+            dest_cell_id: "cell-b".into(),
+            layer: Layer::AtRest,
+            timestamp: Utc::now(),
+        };
+
+        let display = format!("{record}");
+        assert!(display.contains("cell-a"));
+        assert!(display.contains("cell-b"));
+        assert!(display.contains("AtRest"));
     }
 }

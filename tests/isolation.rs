@@ -44,7 +44,18 @@ fn test_cross_cell_decryption_failure() {
 
 #[test]
 fn test_unique_key_derivation() {
-    // Statistical verification that keys differ is implicit in the decryption failure,
-    // but we can't easily check key bytes since they are not exposed (which is good).
-    // The previous test covers the functional aspect of this.
+    // Verify that identical plaintext sealed in two different cells produces
+    // different ciphertext, confirming that HKDF derivation is cell-scoped.
+    let master = generate_master_key().unwrap();
+    let ctx = LayerContext::default();
+    let plaintext = b"identical payload";
+
+    let sealed_a = stack::seal(&master, "cell-a", Layer::AtRest, &ctx, plaintext).unwrap();
+    let sealed_b = stack::seal(&master, "cell-b", Layer::AtRest, &ctx, plaintext).unwrap();
+
+    // Ciphertext must differ: same plaintext + different cell IDs = different derived keys.
+    assert_ne!(
+        sealed_a, sealed_b,
+        "Identical plaintext in different cells produced identical ciphertext!"
+    );
 }

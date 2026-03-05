@@ -47,6 +47,7 @@ impl MasterKey {
     /// In production, the caller should source these bytes from a KMS.
     /// For the PoC, use `crate::generate_master_key()` which calls
     /// `crypto::generate_random_key()` internally.
+    #[must_use]
     pub fn from_bytes(bytes: [u8; KEY_LEN]) -> Self {
         Self { bytes }
     }
