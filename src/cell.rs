@@ -78,7 +78,13 @@ impl Cell {
             .get(key)
             .ok_or_else(|| HexvaultError::CellNotFound(key.to_string()))?;
 
-        stack::peel(partition_key, &self.id, payload.sealed_at, context, &payload.data)
+        stack::peel(
+            partition_key,
+            &self.id,
+            payload.sealed_at,
+            context,
+            &payload.data,
+        )
     }
 
     /// Remove a payload from the cell.

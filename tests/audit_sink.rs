@@ -3,8 +3,8 @@
 use std::sync::{Arc, Mutex};
 
 use hexvault::audit::{AuditRecord, AuditSink};
-use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::error::HexvaultError;
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::{generate_master_key, Vault};
 
 struct DummyResolver;
@@ -48,7 +48,16 @@ fn test_forward_sink_receives_records() {
         .seal(&mut cell_a, "key", b"secret", Layer::AtRest, token)
         .unwrap();
     vault
-        .traverse(&partition, &cell_a, &partition, &mut cell_b, "key", Layer::AtRest, token, token)
+        .traverse(
+            &partition,
+            &cell_a,
+            &partition,
+            &mut cell_b,
+            "key",
+            Layer::AtRest,
+            token,
+            token,
+        )
         .unwrap();
 
     // Primary log has the record

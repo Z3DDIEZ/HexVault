@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::error::HexvaultError;
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::{generate_master_key, Vault};
 
 struct DummyResolver;

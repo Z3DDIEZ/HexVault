@@ -46,10 +46,13 @@ impl LayerContext {
     pub fn empty() -> Self {
         Self::default()
     }
-    
+
     /// Create a new LayerContext. Intended to be called by `TokenResolver` implementations.
     pub fn new(access_policy_id: Option<String>, session_id: Option<String>) -> Self {
-        Self { access_policy_id, session_id }
+        Self {
+            access_policy_id,
+            session_id,
+        }
     }
 }
 
@@ -171,7 +174,14 @@ mod tests {
             session_id: Some("correct-session".to_string()),
         };
 
-        let sealed = seal(&partition, cell_id, Layer::SessionBound, &context, plaintext).unwrap();
+        let sealed = seal(
+            &partition,
+            cell_id,
+            Layer::SessionBound,
+            &context,
+            plaintext,
+        )
+        .unwrap();
 
         // Wrong session ID
         let mut wrong_context = context.clone();

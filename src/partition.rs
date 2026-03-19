@@ -51,12 +51,7 @@ impl Partition {
     }
 
     /// Retrieve a payload from a cell.
-    pub fn open(
-        &self,
-        cell: &Cell,
-        key: &str,
-        token: &str,
-    ) -> Result<Vec<u8>, HexvaultError> {
+    pub fn open(&self, cell: &Cell, key: &str, token: &str) -> Result<Vec<u8>, HexvaultError> {
         let context = self.resolver.resolve(token)?;
         cell.retrieve(&self.key, key, &context)
     }

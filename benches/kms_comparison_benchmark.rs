@@ -12,8 +12,8 @@
 //! - Ratio: ~2000x faster for local operations
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
-use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::error::HexvaultError;
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::{generate_master_key, Vault};
 
 struct DummyResolver;

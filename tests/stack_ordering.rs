@@ -1,5 +1,5 @@
-use hexvault::{generate_master_key, keys};
 use hexvault::stack::{self, Layer, LayerContext};
+use hexvault::{generate_master_key, keys};
 
 #[test]
 fn test_layer_peeling_order() {
@@ -11,10 +11,7 @@ fn test_layer_peeling_order() {
     let cell_id = "test-cell";
     let plaintext = b"layered secret";
 
-    let ctx = LayerContext::new(
-        Some("policy".into()),
-        Some("session".into()),
-    );
+    let ctx = LayerContext::new(Some("policy".into()), Some("session".into()));
 
     // 1. Seal to Layer 2 (SessionBound).
     // Stack: [AtRest] -> [AccessGated] -> [SessionBound]
@@ -37,10 +34,7 @@ fn test_invalid_context_rejection() {
     let cell_id = "test-auth";
     let plaintext = b"guarded secret";
 
-    let correct_ctx = LayerContext::new(
-        Some("secret-policy".into()),
-        None,
-    );
+    let correct_ctx = LayerContext::new(Some("secret-policy".into()), None);
 
     // 1. Seal to Layer 1 (AccessGated).
     let sealed = stack::seal(
@@ -64,7 +58,13 @@ fn test_invalid_context_rejection() {
     // 3. Attempt to peel with MISSING policy ID.
     let missing_ctx = LayerContext::new(None, None);
 
-    let result_missing = stack::peel(&partition, cell_id, Layer::AccessGated, &missing_ctx, &sealed);
+    let result_missing = stack::peel(
+        &partition,
+        cell_id,
+        Layer::AccessGated,
+        &missing_ctx,
+        &sealed,
+    );
     assert!(
         result_missing.is_err(),
         "Peeling succeeded with missing access policy ID!"

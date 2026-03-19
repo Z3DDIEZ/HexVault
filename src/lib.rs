@@ -74,7 +74,11 @@ impl Vault {
     /// Create or get a partition.
     pub fn get_partition(&self, id: &str) -> Result<Partition, error::HexvaultError> {
         let key = keys::derive_partition_key(&self.master_key, id)?;
-        Ok(Partition::new(id.to_string(), key, Arc::clone(&self.token_resolver)))
+        Ok(Partition::new(
+            id.to_string(),
+            key,
+            Arc::clone(&self.token_resolver),
+        ))
     }
 
     /// Traverse data from one cell to another.

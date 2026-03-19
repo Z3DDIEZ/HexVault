@@ -1,5 +1,5 @@
-use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::error::HexvaultError;
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::{generate_master_key, Vault};
 
 struct DummyResolver;
@@ -30,7 +30,16 @@ fn test_successful_traversal() {
 
     // 2. Traverse.
     vault
-        .traverse(&partition, &cell_a, &partition, &mut cell_b, "data", Layer::AtRest, token, token)
+        .traverse(
+            &partition,
+            &cell_a,
+            &partition,
+            &mut cell_b,
+            "data",
+            Layer::AtRest,
+            token,
+            token,
+        )
         .unwrap();
 
     // 3. Verify presence in Destination.
@@ -55,7 +64,16 @@ fn test_audit_logging() {
         .seal(&mut cell_a, "key", b"log me", Layer::AtRest, token)
         .unwrap();
     vault
-        .traverse(&partition, &cell_a, &partition, &mut cell_b, "key", Layer::AtRest, token, token)
+        .traverse(
+            &partition,
+            &cell_a,
+            &partition,
+            &mut cell_b,
+            "key",
+            Layer::AtRest,
+            token,
+            token,
+        )
         .unwrap();
 
     // 2. Verify Audit Log contains the record.

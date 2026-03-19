@@ -9,8 +9,8 @@
 //! - Audit log is persisted to a file for inspection
 
 use hexvault::audit::FileAuditSink;
-use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::error::HexvaultError;
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::{generate_master_key, Vault};
 use std::path::PathBuf;
 

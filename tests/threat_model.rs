@@ -1,5 +1,5 @@
-use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::error::HexvaultError;
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::{generate_master_key, Vault};
 
 struct DummyResolver;
@@ -21,7 +21,7 @@ fn test_insider_access_no_audit() {
 
     let master = generate_master_key().unwrap();
     let mut vault = Vault::new(master, std::sync::Arc::new(DummyResolver));
-    
+
     let partition = vault.get_partition("test").unwrap();
     let mut cell_a = partition.create_cell("a".into());
     let mut cell_b = partition.create_cell("b".into());
@@ -33,7 +33,16 @@ fn test_insider_access_no_audit() {
 
     // The only way to move "secret" to "b" using `Vault` is `traverse`.
     vault
-        .traverse(&partition, &cell_a, &partition, &mut cell_b, "secret", Layer::AtRest, token, token)
+        .traverse(
+            &partition,
+            &cell_a,
+            &partition,
+            &mut cell_b,
+            "secret",
+            Layer::AtRest,
+            token,
+            token,
+        )
         .unwrap();
 
     // And that MUST produce a log.

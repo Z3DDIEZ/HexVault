@@ -37,21 +37,25 @@ pub struct TraversalRequest<'a> {
 /// using `dest_ctx`.
 ///
 /// The plaintext exists only within the scope of this function.
-pub fn traverse(
-    audit: &mut AuditLog,
-    req: TraversalRequest,
-) -> Result<(), HexvaultError> {
+pub fn traverse(audit: &mut AuditLog, req: TraversalRequest) -> Result<(), HexvaultError> {
     // Phase 1: Peel
     // We retrieve the plaintext from the source.
     // If the key doesn't exist or contexts are wrong, this fails early.
-    let plaintext = req.source.retrieve(req.source_partition_key, req.key, req.source_ctx)?;
+    let plaintext = req
+        .source
+        .retrieve(req.source_partition_key, req.key, req.source_ctx)?;
 
     // Phase 2: Seal
     // We store the plaintext into the destination cell.
     // Note: We use the same key string for simplicity, but strictly speaking
     // the key in the new cell could be different. For this API, we keep it consistent.
-    req.dest
-        .store(req.dest_partition_key, req.key, &plaintext, req.target_layer, req.dest_ctx)?;
+    req.dest.store(
+        req.dest_partition_key,
+        req.key,
+        &plaintext,
+        req.target_layer,
+        req.dest_ctx,
+    )?;
 
     // Phase 3: Audit
     // Log the successful traversal.

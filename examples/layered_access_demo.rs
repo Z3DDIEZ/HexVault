@@ -7,8 +7,8 @@
 //!
 //! Run with: `cargo run --example layered_access_demo`
 
-use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::error::HexvaultError;
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
 use hexvault::{generate_master_key, Vault};
 
 struct SimpleTokenResolver;
@@ -18,11 +18,14 @@ impl TokenResolver for SimpleTokenResolver {
         if token.is_empty() {
             return Ok(LayerContext::empty());
         }
-        
+
         let parts: Vec<&str> = token.split(':').collect();
         match parts.len() {
             1 => Ok(LayerContext::new(Some(parts[0].to_string()), None)),
-            2 => Ok(LayerContext::new(Some(parts[0].to_string()), Some(parts[1].to_string()))),
+            2 => Ok(LayerContext::new(
+                Some(parts[0].to_string()),
+                Some(parts[1].to_string()),
+            )),
             _ => Err(HexvaultError::MissingOrInvalidContext),
         }
     }

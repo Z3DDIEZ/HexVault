@@ -50,7 +50,11 @@ impl fmt::Display for AuditRecord {
         write!(
             f,
             "{} → {} @ {:?} [{}] (Hash: {})",
-            self.source_cell_id, self.dest_cell_id, self.layer, self.timestamp, &self.entry_hash[0..8]
+            self.source_cell_id,
+            self.dest_cell_id,
+            self.layer,
+            self.timestamp,
+            &self.entry_hash[0..8]
         )
     }
 }
@@ -91,7 +95,9 @@ impl AuditLog {
     pub fn new() -> Self {
         Self {
             records: Vec::new(),
-            last_hash: String::from("0000000000000000000000000000000000000000000000000000000000000000"),
+            last_hash: String::from(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            ),
             forward_sinks: None,
         }
     }
@@ -117,7 +123,7 @@ impl AuditLog {
 
         let hash_hex = to_hex(ctx.finish().as_ref());
         record.entry_hash = hash_hex.clone();
-        
+
         self.last_hash = hash_hex;
 
         if let Some(ref mut sinks) = self.forward_sinks {

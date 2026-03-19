@@ -1,6 +1,6 @@
 use hexvault::cell::Cell;
-use hexvault::{generate_master_key, keys};
 use hexvault::stack::{self, Layer, LayerContext};
+use hexvault::{generate_master_key, keys};
 
 #[test]
 fn test_cross_cell_decryption_failure() {
