@@ -68,6 +68,31 @@ impl Drop for MasterKey {
 }
 
 // ---------------------------------------------------------------------------
+// Partition key
+// ---------------------------------------------------------------------------
+
+/// A partition key derived from the master key.
+///
+/// - Not `Clone`.
+/// - Zeroised on drop.
+pub struct PartitionKey {
+    bytes: [u8; KEY_LEN],
+}
+
+impl PartitionKey {
+    /// Borrow the raw key bytes for use in HKDF derivation.
+    pub(crate) fn as_bytes(&self) -> &[u8; KEY_LEN] {
+        &self.bytes
+    }
+}
+
+impl Drop for PartitionKey {
+    fn drop(&mut self) {
+        self.bytes = [0u8; KEY_LEN];
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Derived key
 // ---------------------------------------------------------------------------
 
@@ -109,6 +134,30 @@ pub(crate) mod layer_tag {
     pub const SESSION_BOUND: &str = "session";
 }
 
+/// Derive a key for a specific partition.
+///
+/// The `info` string is constructed as: `partition:{partition_id}`
+pub fn derive_partition_key(
+    master: &MasterKey,
+    partition_id: &str,
+) -> Result<PartitionKey, HexvaultError> {
+    let info = format!("partition:{}", partition_id);
+    let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, &[]);
+    let prk = salt.extract(master.as_bytes());
+
+    let info_bytes = info.as_bytes();
+    let info_slices = [info_bytes];
+    let okm = prk
+        .expand(&info_slices, hkdf::HKDF_SHA256)
+        .map_err(|_| HexvaultError::KeyDerivationFailure)?;
+
+    let mut derived = [0u8; KEY_LEN];
+    okm.fill(&mut derived)
+        .map_err(|_| HexvaultError::KeyDerivationFailure)?;
+
+    Ok(PartitionKey { bytes: derived })
+}
+
 /// Derive a key for a specific cell, layer, and context.
 ///
 /// The `info` string is constructed as:
@@ -124,18 +173,18 @@ pub(crate) mod layer_tag {
 /// - Different info strings produce statistically independent outputs.
 /// - The output length is fixed at 256 bits (32 bytes).
 pub(crate) fn derive_key(
-    master: &MasterKey,
+    partition_key: &PartitionKey,
     cell_id: &str,
     layer_tag: &str,
     context_id: &str,
 ) -> Result<DerivedKey, HexvaultError> {
     let info = format!("{}:{}:{}", cell_id, layer_tag, context_id);
 
-    // Extract phase: derive a pseudorandom key (PRK) from the master key.
+    // Extract phase: derive a pseudorandom key (PRK) from the partition key.
     // An empty salt is provided — HKDF internally treats this as a
     // zero-filled salt of the hash output length, which is standard.
     let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, &[]);
-    let prk = salt.extract(master.as_bytes());
+    let prk = salt.extract(partition_key.as_bytes());
 
     // Expand phase: derive the final key from the PRK and the info string.
     // The info string encodes the cell, layer, and context — ensuring every

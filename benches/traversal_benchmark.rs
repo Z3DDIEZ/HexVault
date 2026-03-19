@@ -1,21 +1,30 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use hexvault::stack::{Layer, LayerContext};
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
+use hexvault::error::HexvaultError;
 use hexvault::{generate_master_key, Vault};
+
+struct DummyResolver;
+impl TokenResolver for DummyResolver {
+    fn resolve(&self, _token: &str) -> Result<LayerContext, HexvaultError> {
+        Ok(LayerContext::empty())
+    }
+}
 
 fn benchmark_traversal(c: &mut Criterion) {
     let mut group = c.benchmark_group("traversal");
 
     // Setup vault once
     let master = generate_master_key().unwrap();
-    let mut vault = Vault::new(master);
+    let mut vault = Vault::new(master, std::sync::Arc::new(DummyResolver));
 
+    let partition = vault.get_partition("bench").unwrap();
     // Setup cells
     let cell_a_id = "bench-source";
     let cell_b_id = "bench-dest";
-    let mut cell_a = vault.create_cell(cell_a_id.into());
-    let mut cell_b = vault.create_cell(cell_b_id.into());
+    let mut cell_a = partition.create_cell(cell_a_id.into());
+    let mut cell_b = partition.create_cell(cell_b_id.into());
 
-    let ctx = LayerContext::default();
+    let token = "";
 
     // Pre-calculate payloads of different sizes
     let sizes = [("100B", 100), ("1KB", 1024), ("10KB", 10 * 1024)];
@@ -25,8 +34,8 @@ fn benchmark_traversal(c: &mut Criterion) {
         let key = format!("data-{}", name);
 
         // Store initial data
-        vault
-            .seal(&mut cell_a, &key, &payload, Layer::AtRest, &ctx)
+        partition
+            .seal(&mut cell_a, &key, &payload, Layer::AtRest, token)
             .unwrap();
 
         group.throughput(Throughput::Bytes(size as u64));
@@ -41,12 +50,14 @@ fn benchmark_traversal(c: &mut Criterion) {
                     // for the traverse operation itself.
                     vault
                         .traverse(
+                            black_box(&partition),
                             black_box(&cell_a),
+                            black_box(&partition),
                             black_box(&mut cell_b),
                             black_box(&key),
                             black_box(Layer::AtRest),
-                            black_box(&ctx),
-                            black_box(&ctx),
+                            black_box(token),
+                            black_box(token),
                         )
                         .unwrap();
                 });

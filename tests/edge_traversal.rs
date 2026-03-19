@@ -1,31 +1,40 @@
-use hexvault::stack::{Layer, LayerContext};
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
+use hexvault::error::HexvaultError;
 use hexvault::{generate_master_key, Vault};
+
+struct DummyResolver;
+impl TokenResolver for DummyResolver {
+    fn resolve(&self, _token: &str) -> Result<LayerContext, HexvaultError> {
+        Ok(LayerContext::empty())
+    }
+}
 
 #[test]
 fn test_successful_traversal() {
     // Threat Model #2: Data in transit interception (Protected Traversal).
 
     let master = generate_master_key().unwrap();
-    let mut vault = Vault::new(master);
+    let mut vault = Vault::new(master, std::sync::Arc::new(DummyResolver));
 
-    let mut cell_a = vault.create_cell("cell-a".into());
-    let mut cell_b = vault.create_cell("cell-b".into());
+    let partition = vault.get_partition("test").unwrap();
+    let mut cell_a = partition.create_cell("cell-a".into());
+    let mut cell_b = partition.create_cell("cell-b".into());
 
-    let ctx = LayerContext::default();
+    let token = "";
     let plaintext = b"moving target";
 
     // 1. Store in Source.
-    vault
-        .seal(&mut cell_a, "data", plaintext, Layer::AtRest, &ctx)
+    partition
+        .seal(&mut cell_a, "data", plaintext, Layer::AtRest, token)
         .unwrap();
 
     // 2. Traverse.
     vault
-        .traverse(&cell_a, &mut cell_b, "data", Layer::AtRest, &ctx, &ctx)
+        .traverse(&partition, &cell_a, &partition, &mut cell_b, "data", Layer::AtRest, token, token)
         .unwrap();
 
     // 3. Verify presence in Destination.
-    let result = vault.open(&cell_b, "data", &ctx).unwrap();
+    let result = partition.open(&cell_b, "data", token).unwrap();
     assert_eq!(result, plaintext);
 }
 
@@ -34,18 +43,19 @@ fn test_audit_logging() {
     // Threat Model #5: Insider threat (Audit Trail).
 
     let master = generate_master_key().unwrap();
-    let mut vault = Vault::new(master);
+    let mut vault = Vault::new(master, std::sync::Arc::new(DummyResolver));
 
-    let mut cell_a = vault.create_cell("source".into());
-    let mut cell_b = vault.create_cell("dest".into());
-    let ctx = LayerContext::default();
+    let partition = vault.get_partition("test").unwrap();
+    let mut cell_a = partition.create_cell("source".into());
+    let mut cell_b = partition.create_cell("dest".into());
+    let token = "";
 
     // 1. Perform traversal.
-    vault
-        .seal(&mut cell_a, "key", b"log me", Layer::AtRest, &ctx)
+    partition
+        .seal(&mut cell_a, "key", b"log me", Layer::AtRest, token)
         .unwrap();
     vault
-        .traverse(&cell_a, &mut cell_b, "key", Layer::AtRest, &ctx, &ctx)
+        .traverse(&partition, &cell_a, &partition, &mut cell_b, "key", Layer::AtRest, token, token)
         .unwrap();
 
     // 2. Verify Audit Log contains the record.

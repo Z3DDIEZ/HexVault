@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use crate::error::HexvaultError;
-use crate::keys::MasterKey;
+use crate::keys::PartitionKey;
 use crate::stack::{self, Layer, LayerContext};
 
 /// A unique identifier for a cell.
@@ -46,13 +46,13 @@ impl Cell {
     /// The value is encrypted up to the specified layer and stored under the given key.
     pub fn store(
         &mut self,
-        master: &MasterKey,
+        partition_key: &PartitionKey,
         key: &str,
         text: &[u8],
         layer: Layer,
         context: &LayerContext,
     ) -> Result<(), HexvaultError> {
-        let sealed = stack::seal(master, &self.id, layer, context, text)?;
+        let sealed = stack::seal(partition_key, &self.id, layer, context, text)?;
         self.payloads.insert(
             key.to_string(),
             Payload {
@@ -69,7 +69,7 @@ impl Cell {
     /// is provided for all layers.
     pub fn retrieve(
         &self,
-        master: &MasterKey,
+        partition_key: &PartitionKey,
         key: &str,
         context: &LayerContext,
     ) -> Result<Vec<u8>, HexvaultError> {
@@ -78,7 +78,7 @@ impl Cell {
             .get(key)
             .ok_or_else(|| HexvaultError::CellNotFound(key.to_string()))?;
 
-        stack::peel(master, &self.id, payload.sealed_at, context, &payload.data)
+        stack::peel(partition_key, &self.id, payload.sealed_at, context, &payload.data)
     }
 
     /// Remove a payload from the cell.
@@ -93,33 +93,35 @@ mod tests {
 
     #[test]
     fn test_cell_isolation() {
+        use crate::keys::MasterKey;
         let master = MasterKey::from_bytes([1u8; 32]);
+        let partition = crate::keys::derive_partition_key(&master, "p1").unwrap();
         let mut cell_a = Cell::new("cell-a".to_string());
         let mut cell_b = Cell::new("cell-b".to_string());
         let context = LayerContext::default();
 
         cell_a
-            .store(&master, "secret", b"hello a", Layer::AtRest, &context)
+            .store(&partition, "secret", b"hello a", Layer::AtRest, &context)
             .unwrap();
         cell_b
-            .store(&master, "secret", b"hello b", Layer::AtRest, &context)
+            .store(&partition, "secret", b"hello b", Layer::AtRest, &context)
             .unwrap();
 
         // Cell A should not be able to decrypt Cell B's payload data if it were somehow swapped.
         // But here we just verify they store different things.
         assert_eq!(
-            cell_a.retrieve(&master, "secret", &context).unwrap(),
+            cell_a.retrieve(&partition, "secret", &context).unwrap(),
             b"hello a"
         );
         assert_eq!(
-            cell_b.retrieve(&master, "secret", &context).unwrap(),
+            cell_b.retrieve(&partition, "secret", &context).unwrap(),
             b"hello b"
         );
 
         // Simulate swap/wrong ID by calling stack::peel directly with wrong ID
         let sealed_a = cell_a.payloads.get("secret").unwrap();
         assert!(stack::peel(
-            &master,
+            &partition,
             "cell-b",
             sealed_a.sealed_at,
             &context,

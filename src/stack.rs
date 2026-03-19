@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::crypto;
 use crate::error::HexvaultError;
-use crate::keys::{self, MasterKey};
+use crate::keys::{self, PartitionKey};
 
 /// The three layers of the hexvault encryption stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -33,12 +33,30 @@ impl Layer {
 }
 
 /// Context required to peel or seal specific layers.
+///
+/// Fields are no longer public: callers must use a TokenResolver to generate instances.
 #[derive(Debug, Clone, Default)]
 pub struct LayerContext {
-    /// Required for Layer 1.
-    pub access_policy_id: Option<String>,
-    /// Required for Layer 2.
-    pub session_id: Option<String>,
+    access_policy_id: Option<String>,
+    session_id: Option<String>,
+}
+
+impl LayerContext {
+    /// Create an empty context for Layer 0 (AtRest) operations.
+    pub fn empty() -> Self {
+        Self::default()
+    }
+    
+    /// Create a new LayerContext. Intended to be called by `TokenResolver` implementations.
+    pub fn new(access_policy_id: Option<String>, session_id: Option<String>) -> Self {
+        Self { access_policy_id, session_id }
+    }
+}
+
+/// Resolves opaque authentication/capability tokens into structured `LayerContext`s.
+pub trait TokenResolver: Send + Sync {
+    /// Exchange a token for a LayerContext representing the active security policies.
+    fn resolve(&self, token: &str) -> Result<LayerContext, HexvaultError>;
 }
 
 impl LayerContext {
@@ -62,7 +80,7 @@ impl LayerContext {
 ///
 /// Encryption is applied bottom-up: Layer 0 -> Layer 1 -> ... -> target.
 pub fn seal(
-    master: &MasterKey,
+    partition_key: &PartitionKey,
     cell_id: &str,
     target: Layer,
     context: &LayerContext,
@@ -80,7 +98,7 @@ pub fn seal(
         };
 
         let context_id = context.get_id_for_layer(layer)?;
-        let key = keys::derive_key(master, cell_id, layer.tag(), &context_id)?;
+        let key = keys::derive_key(partition_key, cell_id, layer.tag(), &context_id)?;
 
         current_data = crypto::encrypt(key.as_bytes(), &current_data)?;
     }
@@ -92,7 +110,7 @@ pub fn seal(
 ///
 /// Decryption is applied top-down: current -> ... -> Layer 0.
 pub fn peel(
-    master: &MasterKey,
+    partition_key: &PartitionKey,
     cell_id: &str,
     current_top: Layer,
     context: &LayerContext,
@@ -110,7 +128,7 @@ pub fn peel(
         };
 
         let context_id = context.get_id_for_layer(layer)?;
-        let key = keys::derive_key(master, cell_id, layer.tag(), &context_id)?;
+        let key = keys::derive_key(partition_key, cell_id, layer.tag(), &context_id)?;
 
         current_data = crypto::decrypt(key.as_bytes(), &current_data)?;
     }
@@ -121,11 +139,12 @@ pub fn peel(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keys::MasterKey;
+    use crate::keys::{self, MasterKey};
 
     #[test]
     fn test_seal_peel_roundtrip() {
         let master = MasterKey::from_bytes([0u8; 32]);
+        let partition = keys::derive_partition_key(&master, "p1").unwrap();
         let cell_id = "test-cell";
         let plaintext = b"secret message";
         let context = LayerContext {
@@ -135,8 +154,8 @@ mod tests {
 
         // Test roundtrip for each layer depth.
         for layer in [Layer::AtRest, Layer::AccessGated, Layer::SessionBound] {
-            let sealed = seal(&master, cell_id, layer, &context, plaintext).unwrap();
-            let peeled = peel(&master, cell_id, layer, &context, &sealed).unwrap();
+            let sealed = seal(&partition, cell_id, layer, &context, plaintext).unwrap();
+            let peeled = peel(&partition, cell_id, layer, &context, &sealed).unwrap();
             assert_eq!(plaintext, &peeled[..]);
         }
     }
@@ -144,6 +163,7 @@ mod tests {
     #[test]
     fn test_peel_fails_with_wrong_context() {
         let master = MasterKey::from_bytes([0u8; 32]);
+        let partition = keys::derive_partition_key(&master, "p1").unwrap();
         let cell_id = "test-cell";
         let plaintext = b"secret message";
         let context = LayerContext {
@@ -151,13 +171,13 @@ mod tests {
             session_id: Some("correct-session".to_string()),
         };
 
-        let sealed = seal(&master, cell_id, Layer::SessionBound, &context, plaintext).unwrap();
+        let sealed = seal(&partition, cell_id, Layer::SessionBound, &context, plaintext).unwrap();
 
         // Wrong session ID
         let mut wrong_context = context.clone();
         wrong_context.session_id = Some("wrong-session".to_string());
         assert!(peel(
-            &master,
+            &partition,
             cell_id,
             Layer::SessionBound,
             &wrong_context,
@@ -169,7 +189,7 @@ mod tests {
         let mut missing_context = context.clone();
         missing_context.access_policy_id = None;
         assert!(peel(
-            &master,
+            &partition,
             cell_id,
             Layer::SessionBound,
             &missing_context,

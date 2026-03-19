@@ -19,7 +19,8 @@ pub mod cell;
 pub(crate) mod crypto;
 pub mod edge;
 pub mod error;
-pub(crate) mod keys;
+pub mod keys;
+pub mod partition;
 pub mod stack;
 
 // ---------------------------------------------------------------------------
@@ -45,73 +46,63 @@ pub fn generate_master_key() -> Result<MasterKey, error::HexvaultError> {
 // ---------------------------------------------------------------------------
 
 use audit::AuditLog;
-use cell::{Cell, CellId};
-use stack::{Layer, LayerContext};
+use cell::Cell;
+use partition::Partition;
+use stack::{Layer, TokenResolver};
+
+use std::sync::Arc;
 
 /// The high-level entry point for managing cells and traversals.
 ///
-/// Holds the master key and the central audit log.
+/// Holds the master key, the central audit log, and token resolver.
 pub struct Vault {
     master_key: MasterKey,
     audit_log: AuditLog,
+    token_resolver: Arc<dyn TokenResolver>,
 }
 
 impl Vault {
-    /// Create a new Vault with the provided master key.
-    pub fn new(master_key: MasterKey) -> Self {
+    /// Create a new Vault with the provided master key and token resolver.
+    pub fn new(master_key: MasterKey, token_resolver: Arc<dyn TokenResolver>) -> Self {
         Self {
             master_key,
             audit_log: AuditLog::new(),
+            token_resolver,
         }
     }
 
-    /// Create a new isolated cell.
-    pub fn create_cell(&self, id: CellId) -> Cell {
-        Cell::new(id)
-    }
-
-    /// Seal a payload into a specific cell.
-    pub fn seal(
-        &self,
-        cell: &mut Cell,
-        key: &str,
-        plaintext: &[u8],
-        layer: Layer,
-        context: &LayerContext,
-    ) -> Result<(), error::HexvaultError> {
-        cell.store(&self.master_key, key, plaintext, layer, context)
-    }
-
-    /// Retrieve a payload from a cell.
-    pub fn open(
-        &self,
-        cell: &Cell,
-        key: &str,
-        context: &LayerContext,
-    ) -> Result<Vec<u8>, error::HexvaultError> {
-        cell.retrieve(&self.master_key, key, context)
+    /// Create or get a partition.
+    pub fn get_partition(&self, id: &str) -> Result<Partition, error::HexvaultError> {
+        let key = keys::derive_partition_key(&self.master_key, id)?;
+        Ok(Partition::new(id.to_string(), key, Arc::clone(&self.token_resolver)))
     }
 
     /// Traverse data from one cell to another.
     pub fn traverse(
         &mut self,
+        source_partition: &Partition,
         source: &Cell,
+        dest_partition: &Partition,
         dest: &mut Cell,
         key: &str,
         target_layer: Layer,
-        source_ctx: &LayerContext,
-        dest_ctx: &LayerContext,
+        source_token: &str,
+        dest_token: &str,
     ) -> Result<(), error::HexvaultError> {
+        let source_ctx = self.token_resolver.resolve(source_token)?;
+        let dest_ctx = self.token_resolver.resolve(dest_token)?;
+
         edge::traverse(
-            &self.master_key,
             &mut self.audit_log,
             edge::TraversalRequest {
+                source_partition_key: source_partition.key(),
+                dest_partition_key: dest_partition.key(),
                 source,
                 dest,
                 key,
                 target_layer,
-                source_ctx,
-                dest_ctx,
+                source_ctx: &source_ctx,
+                dest_ctx: &dest_ctx,
             },
         )
     }

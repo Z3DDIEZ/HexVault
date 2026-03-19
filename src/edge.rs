@@ -12,7 +12,7 @@ use chrono::Utc;
 use crate::audit::{AuditLog, AuditRecord};
 use crate::cell::Cell;
 use crate::error::HexvaultError;
-use crate::keys::MasterKey;
+use crate::keys::PartitionKey;
 use crate::stack::{Layer, LayerContext};
 
 /// Configuration arguments for a traversal operation.
@@ -20,6 +20,8 @@ use crate::stack::{Layer, LayerContext};
 /// Encapsulates the parameters required to move a payload between cells,
 /// reducing the argument count for `traverse` and allowing for future extensibility.
 pub struct TraversalRequest<'a> {
+    pub source_partition_key: &'a PartitionKey,
+    pub dest_partition_key: &'a PartitionKey,
     pub source: &'a Cell,
     pub dest: &'a mut Cell,
     pub key: &'a str,
@@ -36,21 +38,20 @@ pub struct TraversalRequest<'a> {
 ///
 /// The plaintext exists only within the scope of this function.
 pub fn traverse(
-    master: &MasterKey,
     audit: &mut AuditLog,
     req: TraversalRequest,
 ) -> Result<(), HexvaultError> {
     // Phase 1: Peel
     // We retrieve the plaintext from the source.
     // If the key doesn't exist or contexts are wrong, this fails early.
-    let plaintext = req.source.retrieve(master, req.key, req.source_ctx)?;
+    let plaintext = req.source.retrieve(req.source_partition_key, req.key, req.source_ctx)?;
 
     // Phase 2: Seal
     // We store the plaintext into the destination cell.
     // Note: We use the same key string for simplicity, but strictly speaking
     // the key in the new cell could be different. For this API, we keep it consistent.
     req.dest
-        .store(master, req.key, &plaintext, req.target_layer, req.dest_ctx)?;
+        .store(req.dest_partition_key, req.key, &plaintext, req.target_layer, req.dest_ctx)?;
 
     // Phase 3: Audit
     // Log the successful traversal.
@@ -59,6 +60,7 @@ pub fn traverse(
         dest_cell_id: req.dest.id().to_string(),
         layer: req.target_layer,
         timestamp: Utc::now(),
+        entry_hash: String::new(),
     };
     audit.append(record);
 
@@ -68,11 +70,12 @@ pub fn traverse(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keys::MasterKey;
+    use crate::keys::{self, MasterKey};
 
     #[test]
     fn test_traverse_audit() {
         let master = MasterKey::from_bytes([2u8; 32]);
+        let partition = keys::derive_partition_key(&master, "p1").unwrap();
         let mut cell_a = Cell::new("cell-a".to_string());
         let mut cell_b = Cell::new("cell-b".to_string());
         let mut audit = AuditLog::new();
@@ -81,14 +84,15 @@ mod tests {
 
         // Store in A
         cell_a
-            .store(&master, "secret", b"move me", Layer::AtRest, &ctx)
+            .store(&partition, "secret", b"move me", Layer::AtRest, &ctx)
             .unwrap();
 
         // Traverse to B
         traverse(
-            &master,
             &mut audit,
             TraversalRequest {
+                source_partition_key: &partition,
+                dest_partition_key: &partition,
                 source: &cell_a,
                 dest: &mut cell_b,
                 key: "secret",
@@ -100,7 +104,7 @@ mod tests {
         .unwrap();
 
         // 1. Verify B has the data
-        let retrieved = cell_b.retrieve(&master, "secret", &ctx).unwrap();
+        let retrieved = cell_b.retrieve(&partition, "secret", &ctx).unwrap();
         assert_eq!(retrieved, b"move me");
 
         // 2. Verify Audit Log

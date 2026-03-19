@@ -12,8 +12,16 @@
 //! - Ratio: ~2000x faster for local operations
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
-use hexvault::stack::{Layer, LayerContext};
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
+use hexvault::error::HexvaultError;
 use hexvault::{generate_master_key, Vault};
+
+struct DummyResolver;
+impl TokenResolver for DummyResolver {
+    fn resolve(&self, _token: &str) -> Result<LayerContext, HexvaultError> {
+        Ok(LayerContext::empty())
+    }
+}
 use std::thread;
 use std::time::Duration;
 
@@ -32,14 +40,15 @@ fn bench_hexvault_traversal(c: &mut Criterion) {
     group.sample_size(20); // Fewer samples for KMS (slow)
 
     let master = generate_master_key().unwrap();
-    let mut vault = Vault::new(master);
-    let mut cell_a = vault.create_cell("cell-a".into());
-    let mut cell_b = vault.create_cell("cell-b".into());
-    let ctx = LayerContext::default();
+    let mut vault = Vault::new(master, std::sync::Arc::new(DummyResolver));
+    let partition = vault.get_partition("bench").unwrap();
+    let mut cell_a = partition.create_cell("cell-a".into());
+    let mut cell_b = partition.create_cell("cell-b".into());
+    let token = "";
 
     let payload = vec![0u8; 10 * 1024]; // 10KB
-    vault
-        .seal(&mut cell_a, "data", &payload, Layer::AtRest, &ctx)
+    partition
+        .seal(&mut cell_a, "data", &payload, Layer::AtRest, token)
         .unwrap();
 
     // HexVault: local only, no network
@@ -47,12 +56,14 @@ fn bench_hexvault_traversal(c: &mut Criterion) {
         b.iter(|| {
             vault
                 .traverse(
+                    black_box(&partition),
                     black_box(&cell_a),
+                    black_box(&partition),
                     black_box(&mut cell_b),
                     black_box("data"),
                     black_box(Layer::AtRest),
-                    black_box(&ctx),
-                    black_box(&ctx),
+                    black_box(token),
+                    black_box(token),
                 )
                 .unwrap();
         });

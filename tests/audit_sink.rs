@@ -3,8 +3,16 @@
 use std::sync::{Arc, Mutex};
 
 use hexvault::audit::{AuditRecord, AuditSink};
-use hexvault::stack::{Layer, LayerContext};
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
+use hexvault::error::HexvaultError;
 use hexvault::{generate_master_key, Vault};
+
+struct DummyResolver;
+impl TokenResolver for DummyResolver {
+    fn resolve(&self, _token: &str) -> Result<LayerContext, HexvaultError> {
+        Ok(LayerContext::empty())
+    }
+}
 
 /// A test sink that collects records into a shared Vec.
 struct SharedVecSink {
@@ -26,20 +34,21 @@ impl AuditSink for SharedVecSink {
 #[test]
 fn test_forward_sink_receives_records() {
     let master = generate_master_key().unwrap();
-    let mut vault = Vault::new(master);
+    let mut vault = Vault::new(master, std::sync::Arc::new(DummyResolver));
 
     let records = Arc::new(Mutex::new(Vec::new()));
     vault.add_audit_sink(Box::new(SharedVecSink::new(Arc::clone(&records))));
 
-    let mut cell_a = vault.create_cell("cell-x".into());
-    let mut cell_b = vault.create_cell("cell-y".into());
-    let ctx = LayerContext::default();
+    let partition = vault.get_partition("test").unwrap();
+    let mut cell_a = partition.create_cell("cell-x".into());
+    let mut cell_b = partition.create_cell("cell-y".into());
+    let token = "";
 
-    vault
-        .seal(&mut cell_a, "key", b"secret", Layer::AtRest, &ctx)
+    partition
+        .seal(&mut cell_a, "key", b"secret", Layer::AtRest, token)
         .unwrap();
     vault
-        .traverse(&cell_a, &mut cell_b, "key", Layer::AtRest, &ctx, &ctx)
+        .traverse(&partition, &cell_a, &partition, &mut cell_b, "key", Layer::AtRest, token, token)
         .unwrap();
 
     // Primary log has the record

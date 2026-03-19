@@ -4,24 +4,33 @@
 
 hexvault organises encryption as a three-dimensional structure. The horizontal axis partitions data into isolated cells. The vertical axis layers encryption within each cell according to trust boundaries. The connecting edges control how data moves between cells.
 
-```
-        ┌───────────────┐   edge    ┌───────────────┐   edge    ┌───────────────┐
-        │    Cell A      │◄─────────►│    Cell B      │◄─────────►│    Cell C      │
-        │                │           │                │           │                │
-        │  ┌──────────┐  │           │  ┌──────────┐  │           │  ┌──────────┐  │
-        │  │ Layer 2  │  │           │  │ Layer 2  │  │           │  │ Layer 2  │  │
-        │  │ session  │  │           │  │ session  │  │           │  │ session  │  │
-        │  ├──────────┤  │           │  ├──────────┤  │           │  ├──────────┤  │
-        │  │ Layer 1  │  │           │  │ Layer 1  │  │           │  │ Layer 1  │  │
-        │  │ access   │  │           │  │ access   │  │           │  │ access   │  │
-        │  ├──────────┤  │           │  ├──────────┤  │           │  ├──────────┤  │
-        │  │ Layer 0  │  │           │  │ Layer 0  │  │           │  │ Layer 0  │  │
-        │  │ at-rest  │  │           │  │ at-rest  │  │           │  │ at-rest  │  │
-        │  └──────────┘  │           │  └──────────┘  │           │  └──────────┘  │
-        └───────────────┘           └───────────────┘           └───────────────┘
+```text
+        ┌────────────────────────────────────────────────────────────┐
+        │                        Partition                           │
+        │   ┌───────────────┐   edge    ┌───────────────┐            │
+        │   │    Cell A     │◄─────────►│    Cell B     │            │
+        │   │               │           │               │            │
+        │   │  ┌──────────┐ │           │  ┌──────────┐ │            │
+        │   │  │ Layer 2  │ │           │  │ Layer 2  │ │            │
+        │   │  │ session  │ │           │  │ session  │ │            │
+        │   │  ├──────────┤ │           │  ├──────────┤ │            │
+        │   │  │ Layer 1  │ │           │  │ Layer 1  │ │            │
+        │   │  │ access   │ │           │  │ access   │ │            │
+        │   │  ├──────────┤ │           │  ├──────────┤ │            │
+        │   │  │ Layer 0  │ │           │  │ Layer 0  │ │            │
+        │   │  │ at-rest  │ │           │  │ at-rest  │ │            │
+        │   │  └──────────┘ │           │  └──────────┘ │            │
+        │   └───────────────┘           └───────────────┘            │
+        └────────────────────────────────────────────────────────────┘
 ```
 
-Each of these three components — cell, stack, edge — is described in full below.
+Each of these components — partition, cell, stack, edge — is described in full below.
+
+---
+
+## Partitions
+
+A partition provides high-level blast-radius containment, separating encryption domains physically by distinct subsets of derived keys. Every Cell belongs to a Partition, adding a robust two-level key hierarchy.
 
 ---
 
@@ -135,9 +144,9 @@ All keys in hexvault are derived from a single master key using HKDF-SHA256. The
 
 Each derived key is produced from three inputs:
 
-```
+```text
 HKDF-SHA256(
-    ikm   = master_key,
+    ikm   = partition_key,
     salt  = None,
     info  = cell_id || ":" || layer_tag || ":" || context_id
 )
@@ -145,8 +154,10 @@ HKDF-SHA256(
 
 | Input | Value | Purpose |
 |---|---|---|
-| `ikm` | The caller-provided master key | The single source of entropy |
+| `ikm` | The partition key (derived from master) | The single source of entropy for the cell |
 | `info` | A structured string combining cell identity, layer tag, and context | Ensures every derived key is unique and scoped to exactly one cell + layer + context combination |
+
+*(Note: The `partition_key` itself is similarly derived from the master key using the string `partition:{partition_id}`).*
 
 ### Why This Works
 

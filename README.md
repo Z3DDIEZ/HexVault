@@ -10,7 +10,7 @@ Layered key isolation, auditable boundary traversal, and threat-model-driven tes
 
 hexvault is not a cipher. It is a structural pattern for how encryption contexts are organised, partitioned, and traversed.
 
-Data is divided into isolated cells — each an independent encryption domain with its own derived keys. Within each cell, encryption is applied in cascading layers, where each layer corresponds to a distinct trust boundary. Movement of data between cells is controlled exclusively by edge handlers: re-encryption gateways that never expose plaintext to the caller, and log every traversal.
+Data is structurally divided into logical **Partitions**, which then host isolated **Cells** — each an independent encryption domain with its own derived keys. Within each cell, encryption is applied in cascading layers, where each layer corresponds to a distinct trust boundary. Movement of data between cells is controlled exclusively by edge handlers: re-encryption gateways that never expose plaintext to the caller, and log every traversal.
 
 The result is an encryption architecture where blast radius is contained by structure, access is gated by layer, and every boundary crossing is auditable.
 
@@ -18,28 +18,32 @@ The result is an encryption architecture where blast radius is contained by stru
 
 ## Architecture
 
+```text
+        ┌────────────────────────────────────────────────────────────┐
+        │                        Partition                           │
+        │   ┌───────────────┐   edge    ┌───────────────┐            │
+        │   │    Cell A     │◄─────────►│    Cell B     │            │
+        │   │               │           │               │            │
+        │   │  ┌──────────┐ │           │  ┌──────────┐ │            │
+        │   │  │ Layer 2  │ │           │  │ Layer 2  │ │            │
+        │   │  │ session  │ │           │  │ session  │ │            │
+        │   │  ├──────────┤ │           │  ├──────────┤ │            │
+        │   │  │ Layer 1  │ │           │  │ Layer 1  │ │            │
+        │   │  │ access   │ │           │  │ access   │ │            │
+        │   │  ├──────────┤ │           │  ├──────────┤ │            │
+        │   │  │ Layer 0  │ │           │  │ Layer 0  │ │            │
+        │   │  │ at-rest  │ │           │  │ at-rest  │ │            │
+        │   │  └──────────┘ │           │  └──────────┘ │            │
+        │   └───────────────┘           └───────────────┘            │
+        └────────────────────────────────────────────────────────────┘
 ```
-        ┌───────────────┐   edge    ┌───────────────┐   edge    ┌───────────────┐
-        │    Cell A      │◄─────────►│    Cell B      │◄─────────►│    Cell C      │
-        │                │           │                │           │                │
-        │  ┌──────────┐  │           │  ┌──────────┐  │           │  ┌──────────┐  │
-        │  │ Layer 2  │  │           │  │ Layer 2  │  │           │  │ Layer 2  │  │
-        │  │ session  │  │           │  │ session  │  │           │  │ session  │  │
-        │  ├──────────┤  │           │  ├──────────┤  │           │  ├──────────┤  │
-        │  │ Layer 1  │  │           │  │ Layer 1  │  │           │  │ Layer 1  │  │
-        │  │ access   │  │           │  │ access   │  │           │  │ access   │  │
-        │  ├──────────┤  │           │  ├──────────┤  │           │  ├──────────┤  │
-        │  │ Layer 0  │  │           │  │ Layer 0  │  │           │  │ Layer 0  │  │
-        │  │ at-rest  │  │           │  │ at-rest  │  │           │  │ at-rest  │  │
-        │  └──────────┘  │           │  └──────────┘  │           │  └──────────┘  │
-        └───────────────┘           └───────────────┘           └───────────────┘
-```
 
-**Cells** partition data horizontally. Each cell owns its keys. No cell can decrypt another cell's data — there is no API path that permits it.
+**Partitions** structure encryption into independent sub-trees derived directly from the Master Key.
+**Cells** partition data horizontally within a partition. Each cell owns its keys. No cell can decrypt another cell's data — there is no API path that permits it.
 
-**Stacks** layer encryption vertically within a cell. Layer 0 is base at-rest encryption. Layer 1 gates access behind a policy context. Layer 2 binds encryption to a session. Decryption peels top-down: you cannot reach Layer 0 without first peeling Layer 2 and Layer 1.
+**Stacks** layer encryption vertically within a cell. Layer 0 is base at-rest encryption. Layer 1 gates access behind a policy context. Layer 2 binds encryption to a session. Decryption peels top-down: you cannot reach Layer 0 without first peeling Layer 2 and Layer 1. Note: All policy contexts are verified opaquely bounded by a trusted `TokenResolver`.
 
-**Edges** are the only mechanism for moving data between cells. They decrypt under the source cell's key, re-encrypt under the destination cell's key, and append an audit record. Plaintext exists in memory only for the duration of that re-encryption — it is never returned to the caller.
+**Edges** are the only mechanism for moving data between cells (even across partitions). They decrypt under the source cell's key, re-encrypt under the destination cell's key, and append a tamper-evident hash-chained audit record. Plaintext exists in memory only for the duration of that re-encryption — it is never returned to the caller.
 
 ---
 
@@ -59,24 +63,35 @@ All cryptographic operations are backed by the [`ring`](https://github.com/brian
 
 ```rust
 use hexvault::{Vault, generate_master_key};
-use hexvault::stack::{Layer, LayerContext};
+use hexvault::stack::{Layer, LayerContext, TokenResolver};
+use hexvault::error::HexvaultError;
+use std::sync::Arc;
+
+struct DummyResolver;
+impl TokenResolver for DummyResolver {
+    fn resolve(&self, _token: &str) -> Result<LayerContext, HexvaultError> {
+        Ok(LayerContext::empty())
+    }
+}
 
 // Master key is caller-provided. In production, source this from a KMS.
 let master_key = generate_master_key().unwrap();
 
-// Create the vault and register cells.
-let mut vault = Vault::new(master_key);
-let mut cell_a = vault.create_cell("cell-a".to_string());
-let mut cell_b = vault.create_cell("cell-b".to_string());
+// Create the vault, attach a resolver, and register a partition & cells.
+let mut vault = Vault::new(master_key, Arc::new(DummyResolver));
+let partition = vault.get_partition("dept-eng").unwrap();
+let mut cell_a = partition.create_cell("cell-a".to_string());
+let mut cell_b = partition.create_cell("cell-b".to_string());
+
+let token = "";
 
 // Encrypt a payload into Cell A at the base layer.
-let context = LayerContext::default();
-vault.seal(&mut cell_a, "sensitive payload", b"data", Layer::AtRest, &context).unwrap();
+partition.seal(&mut cell_a, "sensitive payload", b"data", Layer::AtRest, token).unwrap();
 
 // Traverse from Cell A to Cell B. Plaintext never leaves the edge.
-vault.traverse(&cell_a, &mut cell_b, "sensitive payload", Layer::AtRest, &context, &context).unwrap();
+vault.traverse(&partition, &cell_a, &partition, &mut cell_b, "sensitive payload", Layer::AtRest, token, token).unwrap();
 
-// Audit log is populated automatically.
+// Audit log is populated automatically and records are cryptographically hash-chained.
 let log = vault.audit_log();
 assert_eq!(log.len(), 1);
 ```

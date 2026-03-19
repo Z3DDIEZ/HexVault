@@ -9,9 +9,19 @@ use std::io::Write;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
+use ring::digest;
 use serde::{Deserialize, Serialize};
 
 use crate::stack::Layer;
+
+fn to_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        write!(&mut s, "{:02x}", b).unwrap();
+    }
+    s
+}
 
 /// A sink that receives audit records. Implement this to forward records
 /// to a file, database, S3, or other persistent store.
@@ -31,14 +41,16 @@ pub struct AuditRecord {
     pub layer: Layer,
     /// When the traversal occurred.
     pub timestamp: DateTime<Utc>,
+    /// Cryptographic hash linking to the previous record in the chain.
+    pub entry_hash: String,
 }
 
 impl fmt::Display for AuditRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} → {} @ {:?} [{}]",
-            self.source_cell_id, self.dest_cell_id, self.layer, self.timestamp
+            "{} → {} @ {:?} [{}] (Hash: {})",
+            self.source_cell_id, self.dest_cell_id, self.layer, self.timestamp, &self.entry_hash[0..8]
         )
     }
 }
@@ -48,6 +60,7 @@ impl fmt::Display for AuditRecord {
 #[derive(Default, Serialize, Deserialize)]
 pub struct AuditLog {
     records: Vec<AuditRecord>,
+    last_hash: String,
     #[serde(skip)]
     forward_sinks: Option<Vec<Box<dyn AuditSink>>>,
 }
@@ -68,6 +81,7 @@ impl Clone for AuditLog {
     fn clone(&self) -> Self {
         Self {
             records: self.records.clone(),
+            last_hash: self.last_hash.clone(),
             forward_sinks: None, // Forward sinks are not cloned
         }
     }
@@ -77,6 +91,7 @@ impl AuditLog {
     pub fn new() -> Self {
         Self {
             records: Vec::new(),
+            last_hash: String::from("0000000000000000000000000000000000000000000000000000000000000000"),
             forward_sinks: None,
         }
     }
@@ -91,7 +106,20 @@ impl AuditLog {
     }
 
     /// Append a new record to the log and forward to any attached sinks.
-    pub fn append(&mut self, record: AuditRecord) {
+    pub fn append(&mut self, mut record: AuditRecord) {
+        // Cryptographic linking: hash(last_hash || new_record_contents)
+        let mut ctx = digest::Context::new(&digest::SHA256);
+        ctx.update(self.last_hash.as_bytes());
+        ctx.update(record.source_cell_id.as_bytes());
+        ctx.update(record.dest_cell_id.as_bytes());
+        ctx.update(&(record.layer as u8).to_be_bytes());
+        ctx.update(record.timestamp.timestamp_millis().to_string().as_bytes());
+
+        let hash_hex = to_hex(ctx.finish().as_ref());
+        record.entry_hash = hash_hex.clone();
+        
+        self.last_hash = hash_hex;
+
         if let Some(ref mut sinks) = self.forward_sinks {
             for sink in sinks.iter_mut() {
                 sink.append(record.clone());
@@ -166,12 +194,14 @@ mod tests {
             dest_cell_id: "cell-b".into(),
             layer: Layer::AtRest,
             timestamp: Utc::now(),
+            entry_hash: String::new(),
         });
         log.append(AuditRecord {
             source_cell_id: "cell-b".into(),
             dest_cell_id: "cell-c".into(),
             layer: Layer::SessionBound,
             timestamp: Utc::now(),
+            entry_hash: String::new(),
         });
 
         // Serialize
@@ -195,6 +225,7 @@ mod tests {
             dest_cell_id: "cell-b".into(),
             layer: Layer::AtRest,
             timestamp: Utc::now(),
+            entry_hash: "abcdef0123456789".into(),
         };
 
         let display = format!("{record}");

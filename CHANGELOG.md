@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-20
+
+### Added
+- **Partition Tier**: Introduced a `Partition` layer between `Vault` and `Cell` for robust blast-radius containment, separating encryption domains physically by partition.
+- **Audit Log Tamper Evidence**: Implemented a cryptographic hash chain within the `AuditLog` so missing or tampered records break the cryptographic chain guarantee.
+- **Trust Boundary Policy Enforcement**: Replaced ambient `LayerContext` properties with an enforced `TokenResolver` boundary, securing context creation safely.
+
 ## [1.0.0] — 2026-03-05
 
 ### Added
