@@ -53,7 +53,7 @@ jobs:
         run: cargo test --doc
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --locked --force
 
       - name: Audit Dependencies
         run: cargo audit
