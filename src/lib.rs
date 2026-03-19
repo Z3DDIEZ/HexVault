@@ -82,6 +82,7 @@ impl Vault {
     }
 
     /// Traverse data from one cell to another.
+    #[allow(clippy::too_many_arguments)]
     pub fn traverse(
         &mut self,
         source_partition: &Partition,
