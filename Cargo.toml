@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Zawadi MC Nyachiya"]
 license = "MIT"
 repository = "https://github.com/Z3DDIEZ/HexVault"
+homepage = "https://github.com/Z3DDIEZ/HexVault"
 description = "Cascading cell-partitioned encryption architecture."
 readme = "README.md"
 documentation = "https://docs.rs/hexvault"

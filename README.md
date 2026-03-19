@@ -1,4 +1,9 @@
-# hexvault
+# HexVault
+
+[<img alt="github" src="https://img.shields.io/badge/github-Z3DDIEZ/HexVault-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/Z3DDIEZ/HexVault)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/hexvault.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/hexvault)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-hexvault-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/hexvault)
+[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/Z3DDIEZ/HexVault/ci.yml?branch=main&style=for-the-badge" height="20">](https://github.com/Z3DDIEZ/HexVault/actions?query=branch%3Amain)
 
 Cascading cell-partitioned encryption architecture in Rust.
 
@@ -131,35 +136,7 @@ Rust's ownership model is not incidental to this project — it is load-bearing.
 
 See [docs/design-decisions.md](docs/design-decisions.md) for the full rationale.
 
----
 
-## Project Roadmap & Status
-
-This project was built following a strict "Levels of Completion" strategy to ensure a shippable artifact at every stage.
-
-### Level 1: PoC Complete (Minimum Viable) ✅
-
-- **Goal**: Core architecture implemented, verifying the `Cell` -> `Stack` -> `Edge` pattern.
-- **Status**: Complete. All 8 source modules compile, unit tests pass, and the public API is stable.
-
-### Level 2: Portfolio-Ready (Current State) ✅
-
-- **Goal**: Documentation, security verification, and clean presentation.
-- **Deliverables**:
-  - `SECURITY.md` ensuring threat model coverage.
-  - Integration test suite (`tests/`) verifying isolation and audit logging.
-  - CI/CD workflow (`.github/workflows/ci.yml`) for automated testing.
-  - Comprehensive `Planning-Log` documenting the build process.
-
-### Level 3: Production-Grade (Current State) ✅
-
-- **Goal**: Optimize for real-world usage constraints.
-- **Deliverables**:
-  - Benchmarks (`criterion`) measuring traversal latency (~13µs for 10KB).
-  - Full `crates.io` metadata and semantic versioning compliance.
-  - _Note: Third-party security audit is explicitly out of scope for this release._
-
----
 
 ### Performance
 
