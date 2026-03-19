@@ -39,10 +39,10 @@ If an attacker steals your database dump, RBAC doesn't help. Encryption boundari
    HexVault: ~6–13µs for seal/traverse. KMS: ~15–50ms per call. If you're encrypting thousands of items per second locally, HexVault avoids KMS throttling and latency.
 
 4. **Insider threat model with code access**  
-   Developers can read production code but not deploy changes. HexVault's edge handler keeps plaintext scope-bounded — no `log(plaintext)` in the API.
+   Developers can read production code but not deploy changes. HexVault's edge handler keeps plaintext scope-bounded, and the `TokenResolver` ensures apps cannot forge access contexts.
 
 5. **Deterministic key derivation**  
-   Keys derived from master + context, no key storage. Rotate master → all derived keys invalid. Useful for key hierarchy auditing.
+   Keys derived from `Master` -> `Partition` -> `Cell`, no key storage. Rotate master → all derived keys invalid. Useful for key hierarchy auditing and zero-downtime crypto-shredding.
 
 ---
 

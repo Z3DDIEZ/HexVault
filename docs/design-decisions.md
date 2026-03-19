@@ -42,13 +42,13 @@ The tradeoff is that `ring`'s API is less flexible than `rust-cryptography`. Ope
 
 ## ADR-004 — HKDF-SHA256 for Key Derivation, Not Per-Cell Random Keys
 
-**Context.** Two approaches to per-cell key generation were considered. The first: generate a random key for each cell and store it alongside the cell data. The second: derive each cell's key deterministically from a single master key using HKDF, where the cell ID and layer tag are part of the derivation input.
+**Context.** Two approaches to per-cell key generation were considered. The first: generate a random key for each cell and store it alongside the cell data. The second: derive each cell's key deterministically from a single master key using a two-tier hierarchy (Master -> Partition -> Cell).
 
-**Decision.** HKDF-SHA256 derivation was chosen. No per-cell keys are stored.
+**Decision.** HKDF-SHA256 derivation was chosen via a strict two-tier hierarchy. No per-cell keys are stored.
 
-**Consequences.** Derivation means the only secret that needs to be managed is the master key. Per-cell keys are recreated on demand from the master key and the derivation context. This eliminates a key storage surface entirely. Rotating the master key invalidates all derived keys simultaneously. Compromising a derived key reveals nothing about the master key or any other derived key — HKDF is one-way and the derivation inputs are independent per cell and per layer.
+**Consequences.** Derivation means the only secret that needs to be managed is the master key. Per-cell keys are recreated on demand from the partition key and the derivation context. This eliminates a key storage surface entirely. Rotating the master key invalidates all derived keys simultaneously. Compromising a derived cell key reveals nothing about the partition key or any other derived key.
 
-The tradeoff is that key derivation adds a small computational cost on every encrypt/decrypt operation. For a PoC operating on in-memory data, this cost is negligible.
+The tradeoff is that key derivation adds a small computational cost on every encrypt/decrypt operation. For a system operating predominantly in-memory without network calls, this cost is negligible.
 
 ---
 
@@ -72,13 +72,13 @@ The tradeoff is that key derivation adds a small computational cost on every enc
 
 ---
 
-## ADR-007 — Append-Only Audit Log, Not a Mutable Event Store
+## ADR-007 — Append-Only Cryptographic Hash Chain Audit Log
 
-**Context.** Edge traversals produce audit records. The audit log could be implemented as a mutable collection (allowing records to be edited or deleted) or as an append-only structure (records can only be added, never modified or removed).
+**Context.** Edge traversals produce audit records. The audit log could be implemented as a mutable collection or as an append-only structure. Furthermore, the persistence model needed tamper evidence.
 
-**Decision.** The audit log is append-only.
+**Decision.** The audit log is append-only and cryptographically hash-chained (SHA-256).
 
-**Consequences.** An append-only log cannot be retroactively altered to hide a traversal. This is the foundation of the insider threat defence. A mutable event store would require a separate integrity mechanism (e.g., a Merkle chain over the records) to detect tampering — adding complexity without adding the guarantee that append-only semantics provide for free. The tradeoff is that the log grows without bound for the lifetime of the vault instance. For an in-memory PoC, this is not a concern. For a production system, the log would need to be flushed to a persistent, tamper-evident store at regular intervals.
+**Consequences.** An append-only log cannot be retroactively altered to hide a traversal. The inclusion of an `entry_hash` linking each record sequentially ensures mathematical tamper evidence. A malicious actor cannot delete or modify a single line without breaking the hash chain for all subsequent entries in the SIEM or file sink. 
 
 ---
 
@@ -99,3 +99,23 @@ The tradeoff is that key derivation adds a small computational cost on every enc
 **Decision.** Add an `AuditSink` trait and `add_forward_sink()` on `AuditLog`. The primary log remains in-memory for inspection; attached sinks receive a copy of every record. A built-in `FileAuditSink` writes JSON lines for common use cases.
 
 **Consequences.** Callers can persist the audit trail without modifying core logic. The primary log stays in memory so `audit_log().iter()` continues to work. Forward sinks are optional — existing code is unchanged. The tradeoff is that sink failures (e.g., disk full) do not abort the traversal; the in-memory log still records it. Callers must ensure sink reliability for their compliance requirements.
+
+---
+
+## ADR-010 — Enforced Trust Boundaries via `TokenResolver`
+
+**Context.** Initially, applications compiled `LayerContext` properties directly and passed them into the vault. This violated zero-trust because application code could construct any policy scope it wanted, bypassing actual authentication.
+
+**Decision.** `LayerContext` creation is locked to the internal domain. Applications only pass opaque strings (`token`). A user-provided `TokenResolver` trait boundary translates those tokens into cryptographic contexts.
+
+**Consequences.** A compromised API edge can no longer forge a layer context because it lacks the ability to instantiate the `TokenResolver`'s secure mapping logic. Access gating policy is completely decoupled from standard application flow.
+
+---
+
+## ADR-011 — Two-Tier Blast Radius via `Partition`
+
+**Context.** Originally, the hierarchy was `Vault` -> `Cell`. If a single cell compromised a cryptographic weakness, the blast radius was theoretically bounded to that cell, but practically managed flatly.
+
+**Decision.** Introduced a `Partition` tier. `Vault` hosts `Partitions`, which host `Cells`. Keys flow: Master -> Partition -> Cell.
+
+**Consequences.** Partitions provide hard, secondary cryptographic separation, naturally aligning with enterprise SaaS architecture where Partition = Tenant and Cell = User. Even a catastrophic flaw in a Cell key derives strictly from a Partition, protecting adjacent Partitions cryptographically.

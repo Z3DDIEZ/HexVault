@@ -6,13 +6,13 @@ This document outlines how master key rotation could work for HexVault. It is a 
 
 ## Problem
 
-HexVault derives all per-cell, per-layer keys from a single master key using HKDF. The derivation info string is:
+HexVault derives all per-cell, per-layer keys from a `PartitionKey` (which is derived from the Master Key) using HKDF. The derivation info string is:
 
 ```
 {cell_id}:{layer_tag}:{context_id}
 ```
 
-There is no `key_version` in the derivation input. Rotating the master key would invalidate all derived keys immediately. All existing ciphertext would become undecryptable unless we re-encrypt everything under the new master.
+There is no `key_version` in the derivation input. Rotating the master key (or partition key) would invalidate all derived keys immediately. All existing ciphertext would become undecryptable unless we re-encrypt everything under the new master.
 
 ---
 
