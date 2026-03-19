@@ -1,10 +1,12 @@
 [package]
 name = "hexvault"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
+authors = ["Zawadi MC Nyachiya"]
 license = "MIT"
 repository = "https://github.com/Z3DDIEZ/HexVault"
 description = "Cascading cell-partitioned encryption architecture."
+readme = "README.md"
 documentation = "https://docs.rs/hexvault"
 keywords = ["security", "encryption", "architecture", "cryptography", "isolation"]
 categories = ["cryptography", "data-structures"]
