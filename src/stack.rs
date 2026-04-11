@@ -34,7 +34,11 @@ impl Layer {
 
 /// Context required to peel or seal specific layers.
 ///
-/// Fields are no longer public: callers must use a TokenResolver to generate instances.
+/// Fields are validated on construction: `Some("")` (empty string) is rejected
+/// to prevent silent key-derivation collisions.
+///
+/// Callers must use a `TokenResolver` to generate instances, or construct
+/// via `LayerContext::new()` / `LayerContext::empty()`.
 #[derive(Debug, Clone, Default)]
 pub struct LayerContext {
     access_policy_id: Option<String>,
@@ -47,12 +51,32 @@ impl LayerContext {
         Self::default()
     }
 
-    /// Create a new LayerContext. Intended to be called by `TokenResolver` implementations.
-    pub fn new(access_policy_id: Option<String>, session_id: Option<String>) -> Self {
-        Self {
+    /// Create a new `LayerContext`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `HexvaultError::MissingOrInvalidContext` if either ID is
+    /// `Some("")` (empty string). An empty string would derive the same
+    /// Layer 2 key for all sessions or the same Layer 1 key for all
+    /// access policies — collapsing the isolation guarantee.
+    pub fn new(
+        access_policy_id: Option<String>,
+        session_id: Option<String>,
+    ) -> Result<Self, HexvaultError> {
+        if let Some(ref id) = access_policy_id {
+            if id.is_empty() {
+                return Err(HexvaultError::MissingOrInvalidContext);
+            }
+        }
+        if let Some(ref id) = session_id {
+            if id.is_empty() {
+                return Err(HexvaultError::MissingOrInvalidContext);
+            }
+        }
+        Ok(Self {
             access_policy_id,
             session_id,
-        }
+        })
     }
 }
 
@@ -79,6 +103,16 @@ impl LayerContext {
     }
 }
 
+/// Build the AAD (Additional Authenticated Data) for a specific cell and layer.
+///
+/// The AAD binds the ciphertext to its cell and layer, preventing cross-cell
+/// and cross-layer replay attacks. Even if two cells share identical keys
+/// (impossible under correct HKDF usage), the AAD check would still reject
+/// replayed ciphertext.
+fn build_aad(cell_id: &str, layer: Layer) -> Vec<u8> {
+    format!("hexvault:{}:{}", cell_id, layer.tag()).into_bytes()
+}
+
 /// Seal a payload into the stack up to the target layer.
 ///
 /// Encryption is applied bottom-up: Layer 0 -> Layer 1 -> ... -> target.
@@ -102,8 +136,9 @@ pub fn seal(
 
         let context_id = context.get_id_for_layer(layer)?;
         let key = keys::derive_key(partition_key, cell_id, layer.tag(), &context_id)?;
+        let aad = build_aad(cell_id, layer);
 
-        current_data = crypto::encrypt(key.as_bytes(), &current_data)?;
+        current_data = crypto::encrypt(key.as_bytes(), &current_data, &aad)?;
     }
 
     Ok(current_data)
@@ -132,8 +167,9 @@ pub fn peel(
 
         let context_id = context.get_id_for_layer(layer)?;
         let key = keys::derive_key(partition_key, cell_id, layer.tag(), &context_id)?;
+        let aad = build_aad(cell_id, layer);
 
-        current_data = crypto::decrypt(key.as_bytes(), &current_data)?;
+        current_data = crypto::decrypt(key.as_bytes(), &current_data, &aad)?;
     }
 
     Ok(current_data)
@@ -150,10 +186,11 @@ mod tests {
         let partition = keys::derive_partition_key(&master, "p1").unwrap();
         let cell_id = "test-cell";
         let plaintext = b"secret message";
-        let context = LayerContext {
-            access_policy_id: Some("policy-123".to_string()),
-            session_id: Some("session-456".to_string()),
-        };
+        let context = LayerContext::new(
+            Some("policy-123".to_string()),
+            Some("session-456".to_string()),
+        )
+        .unwrap();
 
         // Test roundtrip for each layer depth.
         for layer in [Layer::AtRest, Layer::AccessGated, Layer::SessionBound] {
@@ -169,10 +206,11 @@ mod tests {
         let partition = keys::derive_partition_key(&master, "p1").unwrap();
         let cell_id = "test-cell";
         let plaintext = b"secret message";
-        let context = LayerContext {
-            access_policy_id: Some("correct-policy".to_string()),
-            session_id: Some("correct-session".to_string()),
-        };
+        let context = LayerContext::new(
+            Some("correct-policy".to_string()),
+            Some("correct-session".to_string()),
+        )
+        .unwrap();
 
         let sealed = seal(
             &partition,
@@ -184,8 +222,11 @@ mod tests {
         .unwrap();
 
         // Wrong session ID
-        let mut wrong_context = context.clone();
-        wrong_context.session_id = Some("wrong-session".to_string());
+        let wrong_context = LayerContext::new(
+            Some("correct-policy".to_string()),
+            Some("wrong-session".to_string()),
+        )
+        .unwrap();
         assert!(peel(
             &partition,
             cell_id,
@@ -196,8 +237,7 @@ mod tests {
         .is_err());
 
         // Missing access policy
-        let mut missing_context = context.clone();
-        missing_context.access_policy_id = None;
+        let missing_context = LayerContext::new(None, None).unwrap();
         assert!(peel(
             &partition,
             cell_id,

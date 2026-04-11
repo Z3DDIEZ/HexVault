@@ -113,8 +113,6 @@ mod tests {
             .store(&partition, "secret", b"hello b", Layer::AtRest, &context)
             .unwrap();
 
-        // Cell A should not be able to decrypt Cell B's payload data if it were somehow swapped.
-        // But here we just verify they store different things.
         assert_eq!(
             cell_a.retrieve(&partition, "secret", &context).unwrap(),
             b"hello a"

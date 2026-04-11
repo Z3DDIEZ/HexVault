@@ -42,6 +42,13 @@ pub enum HexvaultError {
     /// An edge traversal was attempted but the source or destination cell
     /// is not valid for the operation.
     InvalidTraversal(String),
+
+    /// A cell ID was empty. Empty cell IDs collapse key isolation because
+    /// HKDF would derive identical keys for all empty-ID cells.
+    InvalidCellId,
+
+    /// A partition ID was empty.
+    InvalidPartitionId,
 }
 
 impl fmt::Display for HexvaultError {
@@ -57,6 +64,8 @@ impl fmt::Display for HexvaultError {
             Self::InvalidLayer => write!(f, "invalid layer"),
             Self::MissingOrInvalidContext => write!(f, "missing or invalid layer context"),
             Self::InvalidTraversal(reason) => write!(f, "invalid traversal: {}", reason),
+            Self::InvalidCellId => write!(f, "cell ID must not be empty"),
+            Self::InvalidPartitionId => write!(f, "partition ID must not be empty"),
         }
     }
 }

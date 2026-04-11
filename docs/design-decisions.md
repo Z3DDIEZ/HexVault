@@ -119,3 +119,33 @@ The tradeoff is that key derivation adds a small computational cost on every enc
 **Decision.** Introduced a `Partition` tier. `Vault` hosts `Partitions`, which host `Cells`. Keys flow: Master -> Partition -> Cell.
 
 **Consequences.** Partitions provide hard, secondary cryptographic separation, naturally aligning with enterprise SaaS architecture where Partition = Tenant and Cell = User. Even a catastrophic flaw in a Cell key derives strictly from a Partition, protecting adjacent Partitions cryptographically.
+
+---
+
+## ADR-012 — Compiler-Proof Key Zeroisation
+
+**Context.** Original key structures (`MasterKey`, `PartitionKey`, `DerivedKey`) implemented manual `Drop` traits that explicitly overwrote memory with zeros to enforce bounded plaintext visibility and key lifecycle security.
+
+**Decision.** Replaced manual `Drop` loops with the `zeroize` crate (`ZeroizeOnDrop`).
+
+**Consequences.** Manual single-byte loops are highly susceptible to dead-store elimination by modern LLVM optimisers if the compiler determines the data isn't read post-write. `zeroize` forces volatile memory writes that the compiler is strictly forbidden from optimising away.
+
+---
+
+## ADR-013 — Length-Prefixed HKDF Info Strings
+
+**Context.** Key derivation relied on concatenating strings to generate derivation constraints.
+
+**Decision.** HKDF info strings now use length-prefixed encoding (e.g., `len(cell_id) || cell_id`).
+
+**Consequences.** This eliminates delimiter collision vulnerabilities. Previously, a malicious actor might craft a `cell_id` containing the delimiter string to mimic a different derivation structure layer. Length-prefixing structurally prevents cross-layer derivation overlaps.
+
+---
+
+## ADR-014 — AAD Binding for Decryption Authenticity
+
+**Context.** In the original design, AES-256-GCM authenticated the ciphertext intrinsically, but cross-cell replay wasn't structurally blocked via specific labels.
+
+**Decision.** `cell_id` and `layer_tag` are now bound to every ciphertext via GCM's Additional Authenticated Data (AAD) block.
+
+**Consequences.** Defence in depth. The GCM authentication check will now hard-fail immediately if ciphertext belonging to Cell A is submitted for decryption against Cell B—even if an implementation key-management bug theoretically leaked the wrong key.

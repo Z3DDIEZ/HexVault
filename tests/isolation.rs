@@ -21,16 +21,7 @@ fn test_cross_cell_decryption_failure() {
         .store(&partition, "key1", plaintext, Layer::AtRest, &ctx)
         .unwrap();
 
-    // 3. Extract the ciphertext directly (simulating access to storage).
-    // Accessing internal payload data via the public API is hard without exposing internals.
-    // However, we know `cell_a` stores it.
-    // To simulate the attack, we will try to PEEL the data using `stack::peel` with `cell_b_id`.
-
-    // We need to get the ciphertext bytes first.
-    // Using `retrieve` decrypts it, which isn't what we want. We want the raw ciphertext.
-    // Since `Cell` doesn't expose raw ciphertext in the public API, we have to construct
-    // the scenario using `stack::seal` directly to simulate "data stored in Cell A".
-
+    // 3. Seal directly using stack API to get raw ciphertext for Cell A.
     let sealed_in_a = stack::seal(&partition, "cell-a", Layer::AtRest, &ctx, plaintext).unwrap();
 
     // 4. Attempt to decrypt `sealed_in_a` using `cell-b`'s identity.

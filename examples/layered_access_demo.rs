@@ -21,11 +21,8 @@ impl TokenResolver for SimpleTokenResolver {
 
         let parts: Vec<&str> = token.split(':').collect();
         match parts.len() {
-            1 => Ok(LayerContext::new(Some(parts[0].to_string()), None)),
-            2 => Ok(LayerContext::new(
-                Some(parts[0].to_string()),
-                Some(parts[1].to_string()),
-            )),
+            1 => LayerContext::new(Some(parts[0].to_string()), None),
+            2 => LayerContext::new(Some(parts[0].to_string()), Some(parts[1].to_string())),
             _ => Err(HexvaultError::MissingOrInvalidContext),
         }
     }

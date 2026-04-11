@@ -11,7 +11,7 @@ fn test_layer_peeling_order() {
     let cell_id = "test-cell";
     let plaintext = b"layered secret";
 
-    let ctx = LayerContext::new(Some("policy".into()), Some("session".into()));
+    let ctx = LayerContext::new(Some("policy".into()), Some("session".into())).unwrap();
 
     // 1. Seal to Layer 2 (SessionBound).
     // Stack: [AtRest] -> [AccessGated] -> [SessionBound]
@@ -34,7 +34,7 @@ fn test_invalid_context_rejection() {
     let cell_id = "test-auth";
     let plaintext = b"guarded secret";
 
-    let correct_ctx = LayerContext::new(Some("secret-policy".into()), None);
+    let correct_ctx = LayerContext::new(Some("secret-policy".into()), None).unwrap();
 
     // 1. Seal to Layer 1 (AccessGated).
     let sealed = stack::seal(
@@ -47,7 +47,7 @@ fn test_invalid_context_rejection() {
     .unwrap();
 
     // 2. Attempt to peel with WRONG policy ID.
-    let wrong_ctx = LayerContext::new(Some("public-policy".into()), None);
+    let wrong_ctx = LayerContext::new(Some("public-policy".into()), None).unwrap();
 
     let result = stack::peel(&partition, cell_id, Layer::AccessGated, &wrong_ctx, &sealed);
     assert!(
@@ -56,7 +56,7 @@ fn test_invalid_context_rejection() {
     );
 
     // 3. Attempt to peel with MISSING policy ID.
-    let missing_ctx = LayerContext::new(None, None);
+    let missing_ctx = LayerContext::new(None, None).unwrap();
 
     let result_missing = stack::peel(
         &partition,

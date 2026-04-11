@@ -8,6 +8,8 @@
 //! - **Cipher**: AES-256-GCM (authenticated encryption)
 //! - **Nonce**: 96-bit (12 bytes), generated fresh per operation via `SystemRandom`
 //! - **Key size**: 256 bits (32 bytes)
+//! - **AAD**: Additional authenticated data is bound to every seal/open call,
+//!   preventing cross-cell ciphertext replay.
 
 use ring::aead::{self, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use ring::rand::{SecureRandom, SystemRandom};
@@ -42,6 +44,11 @@ fn generate_nonce() -> Result<([u8; NONCE_LEN], Nonce), HexvaultError> {
 
 /// Encrypt a plaintext payload using AES-256-GCM.
 ///
+/// `aad_bytes` is bound to the ciphertext via the GCM authentication tag.
+/// Callers must pass the same AAD during decryption — typically the cell ID
+/// and layer tag — so that ciphertext from one cell cannot be replayed into
+/// another.
+///
 /// Returns the nonce prepended to the ciphertext. The caller does not need to
 /// manage the nonce separately — it is bundled with the output and extracted
 /// automatically during decryption.
@@ -50,12 +57,16 @@ fn generate_nonce() -> Result<([u8; NONCE_LEN], Nonce), HexvaultError> {
 /// ```text
 /// [ nonce (12 bytes) ][ ciphertext + GCM tag ]
 /// ```
-pub fn encrypt(key_bytes: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>, HexvaultError> {
+pub fn encrypt(
+    key_bytes: &[u8; KEY_LEN],
+    plaintext: &[u8],
+    aad_bytes: &[u8],
+) -> Result<Vec<u8>, HexvaultError> {
     let unbound = UnboundKey::new(ALGORITHM, key_bytes).map_err(|_| HexvaultError::InvalidKey)?;
     let key = LessSafeKey::new(unbound);
 
     let (nonce_bytes, nonce) = generate_nonce()?;
-    let aad = aead::Aad::empty();
+    let aad = aead::Aad::from(aad_bytes);
 
     let mut buffer = plaintext.to_vec();
 
@@ -76,10 +87,15 @@ pub fn encrypt(key_bytes: &[u8; KEY_LEN], plaintext: &[u8]) -> Result<Vec<u8>, H
 /// Expects the input to be in the layout produced by `encrypt`:
 /// nonce (12 bytes) followed by ciphertext and GCM tag.
 ///
-/// If the key is wrong or the ciphertext has been tampered with, the GCM
+/// `aad_bytes` must match the AAD that was provided during encryption.
+/// If the AAD, key, or ciphertext has been tampered with, the GCM
 /// authentication check fails and this function returns an error. The caller
 /// receives no partial plaintext.
-pub fn decrypt(key_bytes: &[u8; KEY_LEN], ciphertext: &[u8]) -> Result<Vec<u8>, HexvaultError> {
+pub fn decrypt(
+    key_bytes: &[u8; KEY_LEN],
+    ciphertext: &[u8],
+    aad_bytes: &[u8],
+) -> Result<Vec<u8>, HexvaultError> {
     if ciphertext.len() < NONCE_LEN {
         return Err(HexvaultError::DecryptionFailure);
     }
@@ -92,7 +108,7 @@ pub fn decrypt(key_bytes: &[u8; KEY_LEN], ciphertext: &[u8]) -> Result<Vec<u8>, 
     let unbound = UnboundKey::new(ALGORITHM, key_bytes).map_err(|_| HexvaultError::InvalidKey)?;
     let key = LessSafeKey::new(unbound);
 
-    let aad = aead::Aad::empty();
+    let aad = aead::Aad::from(aad_bytes);
     let mut payload = ciphertext[NONCE_LEN..].to_vec();
 
     let plaintext = key

@@ -84,4 +84,7 @@ fn test_audit_logging() {
     assert_eq!(record.source_cell_id, "source");
     assert_eq!(record.dest_cell_id, "dest");
     assert_eq!(record.layer, Layer::AtRest);
+
+    // 3. Verify the audit chain is intact.
+    assert!(log.verify_chain(), "Audit chain should be valid");
 }

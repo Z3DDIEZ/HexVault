@@ -6,8 +6,15 @@
 //! 3. Append to audit log
 //!
 //! This is the ONLY way data moves between cells.
+//!
+//! ## Plaintext lifetime guarantee
+//!
+//! The decrypted plaintext exists only within the scope of the `traverse`
+//! function. It is explicitly zeroised (via `zeroize`) after re-encryption,
+//! before the function returns — whether the operation succeeds or fails.
 
 use chrono::Utc;
+use zeroize::Zeroize;
 
 use crate::audit::{AuditLog, AuditRecord};
 use crate::cell::Cell;
@@ -36,26 +43,34 @@ pub struct TraversalRequest<'a> {
 /// immediately re-encrypted into the destination cell at `target_layer`
 /// using `dest_ctx`.
 ///
-/// The plaintext exists only within the scope of this function.
+/// The plaintext exists only within the scope of this function and is
+/// explicitly zeroised before return.
 pub fn traverse(audit: &mut AuditLog, req: TraversalRequest) -> Result<(), HexvaultError> {
     // Phase 1: Peel
     // We retrieve the plaintext from the source.
     // If the key doesn't exist or contexts are wrong, this fails early.
-    let plaintext = req
+    let mut plaintext = req
         .source
         .retrieve(req.source_partition_key, req.key, req.source_ctx)?;
 
     // Phase 2: Seal
     // We store the plaintext into the destination cell.
-    // Note: We use the same key string for simplicity, but strictly speaking
-    // the key in the new cell could be different. For this API, we keep it consistent.
-    req.dest.store(
+    // Capture the result BEFORE zeroising plaintext so we can still report errors.
+    let seal_result = req.dest.store(
         req.dest_partition_key,
         req.key,
         &plaintext,
         req.target_layer,
         req.dest_ctx,
-    )?;
+    );
+
+    // Zeroize plaintext IMMEDIATELY — regardless of seal success or failure.
+    // This is the load-bearing security guarantee: plaintext never outlives
+    // the re-encryption operation.
+    plaintext.zeroize();
+
+    // Now propagate any seal error.
+    seal_result?;
 
     // Phase 3: Audit
     // Log the successful traversal.
